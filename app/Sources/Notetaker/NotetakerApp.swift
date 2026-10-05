@@ -37,11 +37,16 @@ final class AppState: ObservableObject {
 
     enum Phase: Equatable { case idle, recording(Date), processing(String), failed(String) }
 
-    @Published var phase: Phase = .idle
+    @Published var phase: Phase = .idle { didSet { refreshPanel() } }
     @Published var elapsed = "0:00"
     @Published var recent: [URL] = Pipeline.recentNotes()
     @Published var launchAtLogin = SMAppService.mainApp.status == .enabled
-    @Published var detectedApp: String?
+    @Published var detectedApp: String? { didSet { refreshPanel() } }
+    /// "Not now" on the floating prompt; cleared when the call ends.
+    @Published var promptDismissed = false { didSet { refreshPanel() } }
+    /// The recording pill's ×; cleared on the next recording.
+    @Published var pillHidden = false { didSet { refreshPanel() } }
+    private lazy var panel = FloatingPanel(state: self)
     @Published var autoDetect = UserDefaults.standard.object(forKey: "autoDetect") as? Bool ?? true
 
     private let recorder = Recorder()
@@ -67,13 +72,13 @@ final class AppState: ObservableObject {
         detectedApp = app
         switch phase {
         case .recording: recordingSawCall = true
-        case .idle, .failed: Notifier.shared.meetingDetected(in: app)
-        case .processing: break
+        case .idle, .failed, .processing: break  // the floating prompt appears via refreshPanel()
         }
     }
 
     private func meetingEnded() {
         detectedApp = nil
+        promptDismissed = false
         Notifier.shared.clearMeetingPrompt()
         if case .recording = phase, recordingSawCall {
             Notifier.shared.info("Call ended", "Stopped recording — making your notes…")
@@ -86,6 +91,16 @@ final class AppState: ObservableObject {
         case .idle, .failed: start()
         default: break
         }
+    }
+
+    private func refreshPanel() {
+        let visible: Bool
+        switch phase {
+        case .recording: visible = !pillHidden
+        case .processing: visible = true
+        case .idle, .failed: visible = autoDetect && detectedApp != nil && !promptDismissed
+        }
+        panel.update(visible: visible)
     }
 
     func toggleAutoDetect() {
@@ -101,6 +116,10 @@ final class AppState: ObservableObject {
         case ("start", .idle), ("start", .failed): start()
         case ("stop", .recording): stop(mode: mode == "local" ? "local" : "claude")
         case ("discard", .recording): discard()
+        case ("test-prompt", .idle):  // preview the floating "call detected" card
+            promptDismissed = false
+            detectedApp = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first { $0.name == "app" }?.value ?? "Teams"
         default: break
         }
     }
@@ -113,6 +132,8 @@ final class AppState: ObservableObject {
             do {
                 try await recorder.start(in: dir)
                 recordingSawCall = detector.inCall
+                promptDismissed = true  // don't re-offer for this call after stopping manually
+                pillHidden = false
                 Notifier.shared.clearMeetingPrompt()
                 let started = Date()
                 phase = .recording(started)
