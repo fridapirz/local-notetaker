@@ -120,7 +120,7 @@ final class AppState: ObservableObject {
                 phase = .idle
                 recent = Pipeline.recentNotes()
                 // Pending = Claude Desktop's scheduled task will add the summary (and notify).
-                if finished { NSWorkspace.shared.open(notes) }
+                if finished { NSWorkspace.shared.open(Pipeline.readable(notes)) }
             } catch {
                 fail(error.localizedDescription)
             }
@@ -189,7 +189,7 @@ struct MenuContent: View {
         if !state.recent.isEmpty {
             Menu("Recent Notes") {
                 ForEach(state.recent, id: \.self) { url in
-                    Button(url.deletingLastPathComponent().lastPathComponent) { NSWorkspace.shared.open(url) }
+                    Button(url.deletingLastPathComponent().lastPathComponent) { NSWorkspace.shared.open(Pipeline.readable(url)) }
                 }
             }
         }

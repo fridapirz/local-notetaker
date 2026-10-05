@@ -100,6 +100,12 @@ enum Pipeline {
             .prefix(limit).map { $0 }
     }
 
+    /// The human-friendly page (notes.html) next to notes.md, falling back to the Markdown.
+    static func readable(_ notesMD: URL) -> URL {
+        let page = notesMD.deletingLastPathComponent().appendingPathComponent("notes.html")
+        return FileManager.default.fileExists(atPath: page.path) ? page : notesMD
+    }
+
     static func err(_ msg: String) -> NSError {
         NSError(domain: "Notetaker", code: 10, userInfo: [NSLocalizedDescriptionKey: msg])
     }

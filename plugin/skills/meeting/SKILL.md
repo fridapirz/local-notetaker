@@ -33,6 +33,9 @@ archive. **Never write shell loops or `ls` parsing over the notes folder.** Fold
 - `notetaker pending`: folders whose summary is still waiting
 - `notetaker process "<folder>" [--mode claude|local] [--language Latvian] [--retranscribe]`: re-run a session
 - `notetaker finish "<folder>" --summary-file "<file>"`: insert a summary you wrote
+- `notetaker html "<folder>"` / `notetaker html --all`: re-render `notes.html` after editing `notes.md`
+- To show the user a meeting, run `open "<folder>/notes.html"`. It opens a formatted page in their browser.
+  Don't open the `.md` file.
 
 Always quote folder paths you pass on the command line.
 
@@ -76,7 +79,8 @@ recognition output.
   `date`. Offer to fix the title and add attendees to the frontmatter, so "Them" can be resolved to names
   where the transcript makes that obvious.
 
-**Fixing notes:** when the user corrects a name or fact, edit `notes.md` in place. Offer to add recurring
+**Fixing notes:** when the user corrects a name or fact, edit `notes.md` in place, then run
+`notetaker html "<folder>"` so the readable page (`notes.html`, which the app opens) is updated. Offer to add recurring
 names to `vocabulary` or `context.md`.
 
 ## Ground rules

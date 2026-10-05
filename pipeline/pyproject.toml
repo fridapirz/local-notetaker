@@ -9,6 +9,7 @@ dependencies = [
     "numpy",
     "soundfile",
     "scipy",
+    "markdown>=3.5",
 ]
 
 [project.scripts]

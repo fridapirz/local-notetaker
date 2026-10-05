@@ -136,6 +136,8 @@ def write_notes(session: Path, notes: str, summary_by: str, segments: list[dict]
     if rename and session.name == f"{started:%Y-%m-%d %H%M}" and not target.exists():
         session.rename(target)
         session = target
+    from .html import render
+    render(session)  # notes.html next to notes.md: what the app opens for humans
     return session / "notes.md"
 
 
@@ -230,6 +232,9 @@ def main() -> None:
     ls = sub.add_parser("list", help="list meetings newest first as JSON lines")
     ls.add_argument("-n", type=int, default=20)
     sub.add_parser("latest", help="print the newest meeting's notes.md path")
+    ht = sub.add_parser("html", help="(re)render notes.html from notes.md, e.g. after editing notes.md")
+    ht.add_argument("session", nargs="?", help="session folder; omit with --all")
+    ht.add_argument("--all", action="store_true")
     sub.add_parser("config", help="print config paths")
     args = p.parse_args()
 
@@ -246,6 +251,13 @@ def main() -> None:
     if args.cmd == "latest":
         done = [s for s in sessions(notes_dir) if s["notes"]]
         print(done[0]["notes"] if done else "")
+        return
+    if args.cmd == "html":
+        from .html import render
+        targets = [Path(x["folder"]) for x in sessions(notes_dir) if x["notes"]] if args.all \
+            else [Path(args.session).expanduser()]
+        for t in targets:
+            print(render(t))
         return
     if args.cmd == "pending":
         for d in pending(Path(os.path.expanduser(load_config()["notes_dir"]))):
