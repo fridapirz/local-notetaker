@@ -1,0 +1,7 @@
+#!/bin/bash
+# Wrapper so Claude (skills, scheduled task) can run the pipeline with one short, allow-listable command:
+#   notetaker list | latest | pending | process <dir> | finish <dir> --summary-file <f>
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+UV="$(command -v uv || echo "$HOME/.local/bin/uv")"
+export UV_PROJECT_ENVIRONMENT="$HOME/Library/Application Support/Notetaker/venv"
+exec "$UV" run --quiet --project "$REPO/pipeline" notetaker "$@"

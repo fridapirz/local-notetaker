@@ -21,33 +21,46 @@ Whisper (Latvian + English), and writes a Markdown note. You work with those not
 - Name hints for Whisper: `vocabulary` (a list of strings) in `config.json`. Suggest adding names that were
   mis-transcribed.
 
+## The `notetaker` command
+
+Use `~/code/local-notetaker/scripts/notetaker` (called `notetaker` below) for everything that touches the
+archive. **Never write shell loops or `ls` parsing over the notes folder.** Folder names contain spaces and
+"–", and file modification times don't reflect meeting order.
+
+- `notetaker latest`: path to the newest meeting's `notes.md` (empty if there are none)
+- `notetaker list [-n 20]`: one JSON object per line, newest first: `folder`, `notes`, `title`, `date`,
+  `duration_min`, `summary_by`, `pending`
+- `notetaker pending`: folders whose summary is still waiting
+- `notetaker process "<folder>" [--mode claude|local] [--language Latvian] [--retranscribe]`: re-run a session
+- `notetaker finish "<folder>" --summary-file "<file>"`: insert a summary you wrote
+
+Always quote folder paths you pass on the command line.
+
 ## Controlling the recorder
 
 - Start: `open "notetaker://start"`
 - Stop and summarize with Claude: `open "notetaker://stop?mode=claude"`
 - Stop and summarize on-device (nothing leaves the laptop): `open "notetaker://stop?mode=local"`
 - Discard: `open "notetaker://discard"`
-- Re-run a session from the terminal (for example after a failure, or to get a summary in another language):
-  `uv run --project "$HOME/Applications/Notetaker.app/Contents/Resources/pipeline" notetaker process "<session dir>" --mode claude [--language Latvian]`.
-  Set `UV_PROJECT_ENVIRONMENT="$HOME/Library/Application Support/Notetaker/venv"` so it reuses the app's environment.
 
 **Pending summaries:** if the `claude` CLI isn't logged in, the app saves the transcript and writes
 `summary_request.md` (a ready-made prompt) into the session; `notes.md` then has `summary_by: pending`. The
 "Meeting notes" scheduled task in Claude Desktop summarizes these every 15 minutes on weekdays. To do one
 right away: read `summary_request.md`, follow it, write the result to `<session>/summary.md`, then run
-`notetaker finish "<session>" --summary-file "<session>/summary.md"` (same `uv run` prefix as above).
-List pending sessions with `notetaker pending`.
+`notetaker finish "<session>" --summary-file "<session>/summary.md"`. It moves the file into `notes.md`,
+renames the folder, and notifies the user. Delete `summary.md` afterwards if it's still there.
 
 If the app isn't installed (`~/Applications/Notetaker.app` is missing), use the `notetaker-setup` skill.
 
 ## What to do
 
-**With no arguments, or "last meeting":** find the newest folder that has a `notes.md`
-(`ls -t "<notes_dir>"`). Show its title, date and length, plus the summary, decisions and action items, but
-not the transcript. Then offer the follow-ups below.
+**With no arguments, or "last meeting":** run `notetaker list -n 5`. Take the first entry. If it is
+`pending`, summarize it first (see "Pending summaries"). Then read its `notes` file and show the title, date
+and length, plus the summary, decisions and action items, but not the transcript. Mention it briefly if other
+meetings are still pending. Then offer the follow-ups below.
 
-**A question about past meetings** ("what did we agree about X", "when did Y come up"): use `grep -ril` across
-`<notes_dir>/*/notes.md` to find candidates, then read the matching notes. Quote the transcript lines with
+**A question about past meetings** ("what did we agree about X", "when did Y come up"): use the Grep tool (not shell
+loops) on the notes folder with glob `*/notes.md` to find candidates, then read the matching notes. Quote the transcript lines with
 their timestamp and the meeting title or date. Say so when the transcript looks garbled, since it is speech
 recognition output.
 

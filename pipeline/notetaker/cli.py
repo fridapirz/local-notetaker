@@ -176,10 +176,38 @@ def process(session: Path, mode: str, language: str | None) -> tuple[Path, bool]
 def finish(session: Path, summary_file: Path, summary_by: str) -> Path:
     """Insert a summary written elsewhere (e.g. by Claude Desktop) into a pending session."""
     segments = json.loads((session / "transcript.json").read_text())
-    path = write_notes(session, summary_file.read_text().strip(), summary_by, segments, rename=True)
+    summary = summary_file.read_text().strip()
+    path = write_notes(session, summary, summary_by, segments, rename=True)
     (path.parent / "summary_request.md").unlink(missing_ok=True)
+    (path.parent / summary_file.name).unlink(missing_ok=True) if summary_file.parent == session else None
     notify("Meeting notes ready", path.parent.name)
     return path
+
+
+def sessions(notes_dir: Path) -> list[dict]:
+    """All meetings, newest first (by the date in the folder name, not file mtime)."""
+    out = []
+    for d in notes_dir.iterdir() if notes_dir.exists() else []:
+        notes = d / "notes.md"
+        if not d.is_dir() or not re.match(r"\d{4}-\d{2}-\d{2} \d{4}", d.name):
+            continue
+        fm = {}
+        if notes.exists():
+            head = notes.read_text().split("\n---\n", 1)[0]
+            for line in head.splitlines():
+                if ":" in line and not line.startswith("---"):
+                    k, v = line.split(":", 1)
+                    fm[k.strip()] = v.strip().strip('"')
+        out.append({
+            "folder": str(d),
+            "notes": str(notes) if notes.exists() else None,
+            "title": fm.get("title", d.name[16:] or "(untitled)"),
+            "date": fm.get("date", d.name[:15]),
+            "duration_min": fm.get("duration_min"),
+            "summary_by": fm.get("summary_by", "not processed"),
+            "pending": (d / "summary_request.md").exists(),
+        })
+    return sorted(out, key=lambda s: Path(s["folder"]).name[:15], reverse=True)
 
 
 def pending(notes_dir: Path) -> list[Path]:
@@ -199,6 +227,9 @@ def main() -> None:
     fi.add_argument("--summary-file", required=True)
     fi.add_argument("--by", default="claude-desktop")
     sub.add_parser("pending", help="list sessions waiting for a summary")
+    ls = sub.add_parser("list", help="list meetings newest first as JSON lines")
+    ls.add_argument("-n", type=int, default=20)
+    sub.add_parser("latest", help="print the newest meeting's notes.md path")
     sub.add_parser("config", help="print config paths")
     args = p.parse_args()
 
@@ -207,6 +238,15 @@ def main() -> None:
         print(f"config:  {CONFIG_DIR / 'config.json'}\ncontext: {CONFIG_DIR / 'context.md'}\nnotes:   {cfg['notes_dir']}")
         return
 
+    notes_dir = Path(os.path.expanduser(load_config()["notes_dir"]))
+    if args.cmd == "list":
+        for s in sessions(notes_dir)[: args.n]:
+            print(json.dumps(s, ensure_ascii=False))
+        return
+    if args.cmd == "latest":
+        done = [s for s in sessions(notes_dir) if s["notes"]]
+        print(done[0]["notes"] if done else "")
+        return
     if args.cmd == "pending":
         for d in pending(Path(os.path.expanduser(load_config()["notes_dir"]))):
             print(d)
