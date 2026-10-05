@@ -6,7 +6,7 @@ description: Work with meetings recorded by the Notetaker menu bar app — start
 # Meeting notes (Notetaker)
 
 The Notetaker app records a call (system audio = **Them**, microphone = **Me**), transcribes it on-device with
-Whisper (Latvian + English), and writes a Markdown note. You work with those notes.
+Whisper (Latvian, English and Russian), and writes a Markdown note. Notes are always in English. You work with those notes.
 
 ## Where things are
 
@@ -33,7 +33,7 @@ everything that touches the archive. **Never write shell loops or `ls` parsing o
 - `notetaker list [-n 20]`: one JSON object per line, newest first: `folder`, `notes`, `title`, `date`,
   `duration_min`, `summary_by`, `pending`
 - `notetaker pending`: folders whose summary is still waiting
-- `notetaker process "<folder>" [--mode claude|local] [--language Latvian] [--retranscribe]`: re-run a session
+- `notetaker process "<folder>" [--mode claude|local] [--retranscribe]`: re-run a session
 - `notetaker request "<folder>"`: print a pending meeting's summary prompt, including the transcript
 - `notetaker finish "<folder>" --summary-stdin <<'NOTES' … NOTES`: insert a summary you wrote. Also accepts
   `--summary-file "<file>"`.

@@ -10,7 +10,7 @@ from pathlib import Path
 
 import markdown
 
-LANG_NAMES = {"lv": "Latvian", "en": "English"}
+LANG_NAMES = {"lv": "Latvian", "en": "English", "ru": "Russian"}
 BY_NAMES = {"claude": "Claude", "claude-desktop": "Claude", "local": "on-device model", "pending": "pending"}
 
 CSS = """

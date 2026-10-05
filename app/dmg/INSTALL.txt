@@ -2,7 +2,7 @@ NOTETAKER: local meeting notes for your Mac
 ==========================================
 
 Records any call (Teams, Zoom, Slack, Meet in a browser), transcribes it ON YOUR MAC
-(Latvian + English), and writes a summary with decisions and action items.
+(Latvian, English and Russian), and writes an English summary with decisions and action items.
 
 Needs: an Apple Silicon Mac (M1 or newer), macOS 15 or later, and about 12 GB of free disk space
 for the speech models, which download automatically the first time.

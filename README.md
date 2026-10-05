@@ -7,7 +7,8 @@ you get a summary in Markdown.
 - **Recording:** ScreenCaptureKit captures system audio (*Them*) and the microphone (*Me*) as separate
   tracks, so there's no BlackHole or virtual audio device and no speaker diarization step.
 - **Transcription:** Whisper large-v3 on MLX, fully local. Language is detected per ~28-second chunk and
-  restricted to **Latvian / English**, so switching languages mid-call works.
+  restricted to **Latvian / English / Russian**, so switching languages mid-call works. Notes are always
+  written in **English**.
 - **Summary:** **Claude** (through your Claude Code login; only the transcript text is sent) or **local**
   Qwen3-14B (nothing leaves the laptop). You choose when you stop the recording.
 - **Claude Desktop:** if the `claude` CLI isn't logged in, the transcript is queued. The "Meeting notes"
@@ -44,11 +45,11 @@ opens when it's ready. Notes go to `~/Notes/meetings/<date time> – <title>/not
 Scriptable: `open notetaker://start`, `open "notetaker://stop?mode=claude|local"`, `open notetaker://discard`.
 
 Config (`~/.config/notetaker/`):
-- `config.json`: `notes_dir`, `summary_language` (English / Latvian), `vocabulary` (names Whisper should
+- `config.json`: `notes_dir`, `summary_language` (default English), `vocabulary` (names Whisper should
   spell correctly)
 - `context.md`: your team, projects and people; passed to the summarizer
 
-Re-process a session: `uv run --project pipeline notetaker process "<session dir>" [--mode local] [--language Latvian] [--retranscribe]`
+Re-process a session: `uv run --project pipeline notetaker process "<session dir>" [--mode local] [--retranscribe]`
 
 ## Stable signing (keep permissions across rebuilds)
 

@@ -222,7 +222,7 @@ def main() -> None:
     pr = sub.add_parser("process", help="transcribe + summarize a recorded session folder")
     pr.add_argument("session")
     pr.add_argument("--mode", choices=["claude", "local"], default="claude")
-    pr.add_argument("--language", help="summary language, e.g. English or Latvian")
+    pr.add_argument("--language", help="summary language (default English, from config)")
     pr.add_argument("--retranscribe", action="store_true", help="ignore cached transcript.json")
     fi = sub.add_parser("finish", help="insert an externally written summary into a pending session")
     fi.add_argument("session")

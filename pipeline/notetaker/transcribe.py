@@ -1,4 +1,4 @@
-"""Local transcription: energy VAD -> <=28s chunks -> per-chunk LV/EN detection -> Whisper (MLX)."""
+"""Local transcription: energy VAD -> <=28s chunks -> per-chunk LV/EN/RU detection -> Whisper (MLX)."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from mlx_whisper.transcribe import ModelHolder
 from scipy.signal import resample_poly
 
 WHISPER_MODEL = os.environ.get("NOTETAKER_WHISPER_MODEL", "mlx-community/whisper-large-v3-mlx")
-LANGUAGES = os.environ.get("NOTETAKER_LANGUAGES", "lv,en").split(",")
+LANGUAGES = os.environ.get("NOTETAKER_LANGUAGES", "lv,en,ru").split(",")
 
 FRAME = int(0.03 * SAMPLE_RATE)  # 30 ms VAD frames
 MAX_CHUNK_S = 28.0
@@ -84,6 +84,10 @@ HALLUCINATIONS = (
     "thanks for watching",
     "subtitles by",
     "subtitri",
+    "продолжение следует",
+    "спасибо за просмотр",
+    "субтитр",
+    "редактор субтитров",
 )
 
 

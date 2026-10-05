@@ -1,7 +1,7 @@
 {
   "name": "notetaker",
-  "version": "0.1.5",
-  "description": "Local meeting note taker for macOS: menu bar recorder (any app/browser), on-device Whisper transcription (Latvian + English), Claude summaries, and follow-ups into Jira, Confluence and Slack.",
+  "version": "0.1.6",
+  "description": "Local meeting note taker for macOS: menu bar recorder (any app/browser), on-device Whisper transcription (Latvian, Russian + English), Claude summaries, and follow-ups into Jira, Confluence and Slack.",
   "author": { "name": "Janis Murāns" },
-  "keywords": ["meetings", "notes", "transcription", "whisper", "latvian"]
+  "keywords": ["meetings", "notes", "transcription", "whisper", "latvian", "russian"]
 }
