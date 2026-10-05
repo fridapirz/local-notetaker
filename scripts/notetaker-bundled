@@ -1,0 +1,6 @@
+#!/bin/bash
+# Installed as Notetaker.app/Contents/Resources/notetaker: runs the bundled pipeline with the bundled uv.
+#   notetaker list | latest | pending | process <dir> | finish <dir> --summary-file <f> | html <dir>
+RES="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export UV_PROJECT_ENVIRONMENT="$HOME/Library/Application Support/Notetaker/venv"
+exec "$RES/bin/uv" run --quiet --frozen --python 3.12 --project "$RES/pipeline" notetaker "$@"

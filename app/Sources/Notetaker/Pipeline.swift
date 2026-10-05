@@ -26,7 +26,7 @@ enum Pipeline {
     }
 
     static var uvPath: String? {
-        ["\(home.path)/.local/bin/uv", "/opt/homebrew/bin/uv", "/usr/local/bin/uv", "\(home.path)/.cargo/bin/uv"]
+        [Bundle.main.resourceURL?.appendingPathComponent("bin/uv").path ?? "", "\(home.path)/.local/bin/uv", "/opt/homebrew/bin/uv", "/usr/local/bin/uv", "\(home.path)/.cargo/bin/uv"]
             .first { FileManager.default.isExecutableFile(atPath: $0) }
     }
 
@@ -44,7 +44,7 @@ enum Pipeline {
 
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: uv)
-        proc.arguments = ["run", "--quiet", "--project", project.path, "--python", "3.12",
+        proc.arguments = ["run", "--quiet", "--frozen", "--project", project.path, "--python", "3.12",
                           "notetaker", "process", session.path, "--mode", mode]
         var env = ProcessInfo.processInfo.environment
         env["PATH"] = "\(home.path)/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:" + (env["PATH"] ?? "")

@@ -45,18 +45,27 @@ iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 rsync -a --exclude .venv --exclude __pycache__ --exclude uv.lock pipeline/ "$APP/Contents/Resources/pipeline/"
 [ -f pipeline/uv.lock ] && cp pipeline/uv.lock "$APP/Contents/Resources/pipeline/"
 
+# Bundle uv (single binary, MIT/Apache-2.0) so the app runs on Macs without it; it fetches Python itself.
+UV_BIN="$(command -v uv || echo "$HOME/.local/bin/uv")"
+mkdir -p "$APP/Contents/Resources/bin"
+cp "$UV_BIN" "$APP/Contents/Resources/bin/uv"
+cp scripts/notetaker-bundled "$APP/Contents/Resources/notetaker"
+
 # Sign with a stable self-signed identity if present, so macOS keeps Microphone / Screen & System Audio
 # permissions across rebuilds. Create it once: Keychain Access › Certificate Assistant › Create a
 # Certificate… › Name "Notetaker Local Signing", Identity Type "Self Signed Root", Type "Code Signing".
 IDENTITY="${NOTETAKER_SIGN_IDENTITY:-Notetaker Local Signing}"
 if security find-identity -p codesigning 2>/dev/null | grep -q "\"$IDENTITY\""; then
+  codesign --force --sign "$IDENTITY" "$APP/Contents/Resources/bin/uv"
   codesign --force --sign "$IDENTITY" --identifier com.local.notetaker "$APP"
   echo "Signed with \"$IDENTITY\" (permissions persist across rebuilds)"
 else
+  codesign --force --sign - "$APP/Contents/Resources/bin/uv"
   codesign --force --sign - --identifier com.local.notetaker "$APP"
   echo "Ad-hoc signed: macOS will ask for permissions again after this rebuild (see README › Stable signing)"
 fi
 
+[ "${NO_INSTALL:-}" = 1 ] && { echo "Built $APP"; exit 0; }
 DEST="$HOME/Applications"
 mkdir -p "$DEST"
 pkill -x Notetaker 2>/dev/null || true

@@ -23,8 +23,10 @@ Whisper (Latvian + English), and writes a Markdown note. You work with those not
 
 ## The `notetaker` command
 
-Use `~/code/local-notetaker/scripts/notetaker` (called `notetaker` below) for everything that touches the
-archive. **Never write shell loops or `ls` parsing over the notes folder.** Folder names contain spaces and
+Use the command bundled in the app, called `notetaker` below:
+`/Applications/Notetaker.app/Contents/Resources/notetaker`, or `~/Applications/Notetaker.app/...` if the app
+is installed there. Developers may instead use `~/code/local-notetaker/scripts/notetaker`. Use it for
+everything that touches the archive. **Never write shell loops or `ls` parsing over the notes folder.** Folder names contain spaces and
 "–", and file modification times don't reflect meeting order.
 
 - `notetaker latest`: path to the newest meeting's `notes.md` (empty if there are none)
@@ -32,7 +34,9 @@ archive. **Never write shell loops or `ls` parsing over the notes folder.** Fold
   `duration_min`, `summary_by`, `pending`
 - `notetaker pending`: folders whose summary is still waiting
 - `notetaker process "<folder>" [--mode claude|local] [--language Latvian] [--retranscribe]`: re-run a session
-- `notetaker finish "<folder>" --summary-file "<file>"`: insert a summary you wrote
+- `notetaker request "<folder>"`: print a pending meeting's summary prompt, including the transcript
+- `notetaker finish "<folder>" --summary-stdin <<'NOTES' … NOTES`: insert a summary you wrote. Also accepts
+  `--summary-file "<file>"`.
 - `notetaker html "<folder>"` / `notetaker html --all`: re-render `notes.html` after editing `notes.md`
 - To show the user a meeting, run `open "<folder>/notes.html"`. It opens a formatted page in their browser.
   Don't open the `.md` file.
@@ -49,9 +53,9 @@ Always quote folder paths you pass on the command line.
 **Pending summaries:** if the `claude` CLI isn't logged in, the app saves the transcript and writes
 `summary_request.md` (a ready-made prompt) into the session; `notes.md` then has `summary_by: pending`. The
 "Meeting notes" scheduled task in Claude Desktop summarizes these every 15 minutes on weekdays. To do one
-right away: read `summary_request.md`, follow it, write the result to `<session>/summary.md`, then run
-`notetaker finish "<session>" --summary-file "<session>/summary.md"`. It moves the file into `notes.md`,
-renames the folder, and notifies the user. Delete `summary.md` afterwards if it's still there.
+right away: run `notetaker request "<folder>"`, follow the instructions it prints, then save the result with
+`notetaker finish "<folder>" --summary-stdin` (heredoc). This renames the folder, renders `notes.html`, and
+notifies the user.
 
 If the app isn't installed (`~/Applications/Notetaker.app` is missing), use the `notetaker-setup` skill.
 

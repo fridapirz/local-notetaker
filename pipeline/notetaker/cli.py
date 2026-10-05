@@ -226,9 +226,13 @@ def main() -> None:
     pr.add_argument("--retranscribe", action="store_true", help="ignore cached transcript.json")
     fi = sub.add_parser("finish", help="insert an externally written summary into a pending session")
     fi.add_argument("session")
-    fi.add_argument("--summary-file", required=True)
+    src = fi.add_mutually_exclusive_group(required=True)
+    src.add_argument("--summary-file")
+    src.add_argument("--summary-stdin", action="store_true", help="read the summary Markdown from stdin")
     fi.add_argument("--by", default="claude-desktop")
     sub.add_parser("pending", help="list sessions waiting for a summary")
+    rq = sub.add_parser("request", help="print the summary prompt (incl. transcript) for a pending session")
+    rq.add_argument("session")
     ls = sub.add_parser("list", help="list meetings newest first as JSON lines")
     ls.add_argument("-n", type=int, default=20)
     sub.add_parser("latest", help="print the newest meeting's notes.md path")
@@ -264,8 +268,16 @@ def main() -> None:
             print(d)
         return
     session = Path(args.session).expanduser().resolve()
+    if args.cmd == "request":
+        print((session / "summary_request.md").read_text())
+        return
     if args.cmd == "finish":
-        print(f"DONE: {finish(session, Path(args.summary_file).expanduser(), args.by)}")
+        if args.summary_stdin:
+            tmp = session / "summary.md"
+            tmp.write_text(sys.stdin.read())
+            print(f"DONE: {finish(session, tmp, args.by)}")
+        else:
+            print(f"DONE: {finish(session, Path(args.summary_file).expanduser(), args.by)}")
         return
     if args.retranscribe:
         (session / "transcript.json").unlink(missing_ok=True)
