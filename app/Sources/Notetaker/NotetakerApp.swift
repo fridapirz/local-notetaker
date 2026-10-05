@@ -280,5 +280,6 @@ struct MenuContent: View {
         Toggle("Detect Meetings", isOn: Binding(get: { state.autoDetect }, set: { _ in state.toggleAutoDetect() }))
         Toggle("Launch at Login", isOn: Binding(get: { state.launchAtLogin }, set: { _ in state.toggleLaunchAtLogin() }))
         Button("Quit Notetaker") { NSApp.terminate(nil) }.keyboardShortcut("q")
+        Text("Notetaker \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")")
     }
 }
