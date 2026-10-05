@@ -1,0 +1,7 @@
+{
+  "name": "notetaker",
+  "version": "0.1.0",
+  "description": "Local meeting note taker for macOS: menu bar recorder (any app/browser), on-device Whisper transcription (Latvian + English), Claude summaries, and follow-ups into Jira, Confluence and Slack.",
+  "author": { "name": "JAM team" },
+  "keywords": ["meetings", "notes", "transcription", "whisper", "latvian"]
+}
