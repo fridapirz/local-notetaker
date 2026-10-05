@@ -1,5 +1,9 @@
 # Notetaker
 
+![Notetaker demo](docs/demo/notetaker-demo.gif)
+
+[▶ Full-quality video (MP4)](docs/demo/notetaker-demo.mp4)
+
 A local meeting note taker for Apple Silicon Macs. It lives in the menu bar and records any call (Teams,
 Zoom, Meet in any browser, Slack huddles), with headphones or speakers. Transcription runs on-device, then
 you get a summary in Markdown.

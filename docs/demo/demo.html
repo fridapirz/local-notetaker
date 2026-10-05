@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Notetaker demo</title>
+<style>
+  :root {
+    --violet: #5b4cf0; --violet-2: #8b7dff; --pink: #ff5c8a; --teal: #19b3a3;
+    --ink: #f4f3ff; --muted: #a9a5c9; --card: rgba(255,255,255,0.07); --line: rgba(255,255,255,0.12);
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: #0d0b1d; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif; color: var(--ink); }
+  #stage { position: absolute; inset: 0; overflow: hidden;
+    background: radial-gradient(1200px 700px at 20% 10%, #2a2170 0%, transparent 60%),
+                radial-gradient(900px 600px at 90% 90%, #3a1a55 0%, transparent 60%), #0d0b1d; }
+  .layer { position: absolute; inset: 0; will-change: transform, opacity; }
+  .center { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .caption { position: absolute; left: 0; right: 0; bottom: 64px; text-align: center; font-size: 44px; font-weight: 700; letter-spacing: -0.01em; }
+  .caption small { display: block; font-size: 26px; font-weight: 500; color: var(--muted); margin-top: 10px; letter-spacing: 0; }
+  .chip { display: inline-flex; align-items: center; gap: 10px; padding: 10px 22px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); font-size: 26px; font-weight: 600; }
+
+  /* Title */
+  #title img { width: 220px; height: 220px; filter: drop-shadow(0 30px 60px rgba(91,76,240,.5)); }
+  #title h1 { font-size: 120px; font-weight: 800; letter-spacing: -0.03em; margin-top: 26px; }
+  #title p { font-size: 40px; color: var(--muted); margin-top: 8px; }
+  #langs { display: flex; gap: 18px; margin-top: 40px; }
+
+  /* Desktop mock */
+  #screen { position: absolute; left: 160px; top: 70px; width: 1600px; height: 860px; border-radius: 26px; overflow: hidden;
+    background: linear-gradient(160deg, #24304a, #141a2a); border: 1px solid var(--line); box-shadow: 0 40px 120px rgba(0,0,0,.55); }
+  #menubar { height: 40px; background: rgba(20,20,30,.6); display: flex; align-items: center; justify-content: flex-end; gap: 26px; padding: 0 26px; font-size: 18px; color: #e8e8f0; }
+  #menubar .wave { display: flex; gap: 3px; align-items: center; }
+  #menubar .wave i { width: 3px; background: #fff; border-radius: 2px; display: block; }
+  #call { position: absolute; left: 70px; top: 90px; width: 1000px; height: 690px; border-radius: 18px; background: #1d1f2b; border: 1px solid var(--line); overflow: hidden; }
+  #call .bar { height: 54px; display: flex; align-items: center; padding: 0 22px; font-size: 20px; color: var(--muted); border-bottom: 1px solid var(--line); }
+  #tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 18px; height: 540px; }
+  .tile { border-radius: 14px; background: #2a2d3d; display: flex; align-items: center; justify-content: center; position: relative; }
+  .tile .av { width: 120px; height: 120px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 48px; font-weight: 700; }
+  .tile .nm { position: absolute; left: 16px; bottom: 12px; font-size: 18px; color: #dcdcea; }
+  .tile .ring { position: absolute; inset: 0; border-radius: 14px; border: 4px solid #6ee7b7; opacity: 0; }
+  #tools { display: flex; justify-content: center; gap: 18px; padding-top: 6px; }
+  .tool { width: 64px; height: 64px; border-radius: 50%; background: #343849; display: flex; align-items: center; justify-content: center; font-size: 26px; }
+  .tool.leave { background: #e5484d; width: 110px; border-radius: 32px; font-size: 20px; font-weight: 700; }
+
+  /* Floating card + pill (mirrors the real app) */
+  #card { position: absolute; right: 30px; top: 58px; width: 650px; white-space: nowrap; padding: 20px 22px; border-radius: 22px;
+    background: rgba(245,244,255,.96); color: #1d1b2e; display: flex; align-items: center; gap: 16px; box-shadow: 0 20px 50px rgba(0,0,0,.45); }
+  #card img { width: 58px; height: 58px; }
+  #card .t1 { font-size: 22px; font-weight: 700; }
+  #card .t2 { font-size: 17px; color: #6b6880; margin-top: 2px; }
+  .btn { padding: 11px 18px; border-radius: 11px; font-size: 18px; font-weight: 600; white-space: nowrap; }
+  .btn.ghost { background: #e7e5f2; color: #1d1b2e; }
+  .btn.primary { background: var(--violet); color: #fff; }
+  #pill { position: absolute; right: 30px; top: 58px; padding: 16px 22px; border-radius: 22px; background: rgba(245,244,255,.96); color: #1d1b2e;
+    display: flex; align-items: center; gap: 14px; font-size: 21px; font-weight: 600; box-shadow: 0 20px 50px rgba(0,0,0,.45); }
+  #pill .dot { width: 14px; height: 14px; border-radius: 50%; background: #ef3b4f; }
+  #pill .time { font-variant-numeric: tabular-nums; color: #6b6880; font-weight: 500; }
+  #pill .stop { background: #ef3b4f; color: #fff; }
+  #cursor { position: absolute; width: 34px; height: 34px; left: 0; top: 0; }
+
+  /* Transcription */
+  #wave { position: absolute; left: 170px; top: 300px; width: 560px; height: 300px; display: flex; align-items: center; gap: 12px; }
+  #wave i { flex: 1; border-radius: 10px; background: linear-gradient(180deg, var(--violet-2), var(--pink)); display: block; }
+  #lines { position: absolute; left: 820px; top: 318px; width: 960px; display: flex; flex-direction: column; gap: 22px; }
+  .tl { display: grid; grid-template-columns: 90px 96px 1fr; gap: 18px; align-items: center; padding: 22px 26px; border-radius: 18px; background: var(--card); border: 1px solid var(--line); }
+  .tl .ts { font: 500 22px ui-monospace, Menlo, monospace; color: var(--muted); }
+  .tl .who { font-size: 20px; font-weight: 700; padding: 7px 0; border-radius: 999px; text-align: center; }
+  .tl .who.me { background: rgba(139,125,255,.22); color: #b9b0ff; }
+  .tl .who.them { background: rgba(25,179,163,.22); color: #6fe3d5; }
+  .tl .tx { font-size: 30px; }
+  .tl .lg { font-size: 16px; font-weight: 700; color: var(--muted); margin-left: 12px; border: 1px solid var(--line); padding: 2px 8px; border-radius: 6px; vertical-align: middle; }
+
+  /* Notes page */
+  #notes { position: absolute; left: 360px; top: 170px; width: 1200px; border-radius: 26px; background: #fbfaff; color: #1d1b2e; padding: 56px 70px; box-shadow: 0 40px 120px rgba(0,0,0,.55); overflow: hidden; }
+  #notes .eb { color: var(--violet); font-size: 18px; font-weight: 700; letter-spacing: .08em; }
+  #notes h2 { font-size: 52px; font-weight: 800; letter-spacing: -0.02em; margin: 8px 0 18px; }
+  #notes .chips { display: flex; gap: 10px; flex-wrap: wrap; }
+  #notes .chips span { background: #eeebff; border-radius: 999px; padding: 6px 16px; font-size: 18px; }
+  #notes h3 { font-size: 17px; letter-spacing: .08em; color: #6b6880; margin: 30px 0 10px; padding-top: 22px; border-top: 1px solid #e7e5f0; }
+  #notes p { font-size: 24px; line-height: 1.5; }
+  .ai { display: flex; align-items: center; gap: 16px; font-size: 25px; margin: 12px 0; }
+  .ai .box { width: 28px; height: 28px; border-radius: 8px; border: 3px solid var(--violet); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px; font-weight: 900; }
+  .ai b { font-weight: 700; }
+
+  /* Claude chat */
+  #chat { position: absolute; left: 360px; top: 190px; width: 1200px; border-radius: 26px; background: #faf9f5; color: #2b2a26; padding: 40px 54px; box-shadow: 0 40px 120px rgba(0,0,0,.55); }
+  #chat .hd { font-size: 20px; color: #8a877d; font-weight: 600; margin-bottom: 28px; }
+  #chat .user { margin-left: auto; width: fit-content; max-width: 760px; background: #ecebe3; padding: 18px 24px; border-radius: 20px; font-size: 27px; }
+  #chat .user .cmd { color: #b45309; font-weight: 700; }
+  #chat .reply { margin-top: 30px; font-size: 26px; line-height: 1.5; }
+  .tk { display: flex; align-items: center; gap: 16px; padding: 16px 20px; border: 1px solid #e3e1d8; border-radius: 14px; margin-top: 12px; font-size: 24px; background: #fff; }
+  .tk .key { font: 700 20px ui-monospace, Menlo, monospace; color: #2563eb; }
+  .tk .as { margin-left: auto; color: #8a877d; font-size: 20px; }
+  #chat .actions { display: flex; gap: 14px; margin-top: 22px; }
+  #chat .actions .btn { font-size: 21px; padding: 13px 24px; }
+  #chat .actions .ok { background: #c96442; color: #fff; }
+
+  /* End card */
+  #end img { width: 170px; height: 170px; filter: drop-shadow(0 30px 60px rgba(91,76,240,.5)); }
+  #end h1 { font-size: 96px; font-weight: 800; letter-spacing: -0.03em; margin-top: 20px; }
+  #end p { font-size: 34px; color: var(--muted); margin-top: 6px; }
+  #end .install { margin-top: 48px; font-size: 30px; padding: 22px 34px; border-radius: 18px; background: var(--card); border: 1px solid var(--line); }
+  #end .install code { font: 600 30px ui-monospace, Menlo, monospace; color: #c9c2ff; }
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <div id="title" class="layer center">
+    <img id="t-icon" src="../../app/icon/icon_1024.png" alt="">
+    <h1 id="t-h1">Notetaker</h1>
+    <p id="t-p">Private meeting notes for your Mac</p>
+    <div id="langs"><span class="chip">🇱🇻 Latvian</span><span class="chip">🇬🇧 English</span><span class="chip">🇷🇺 Russian</span></div>
+  </div>
+
+  <div id="desk" class="layer">
+    <div id="screen">
+      <div id="menubar"><span class="wave" id="mb-wave"></span><span>🔋</span><span>Mon 5 Oct  10:02</span></div>
+      <div id="call">
+        <div class="bar">● Weekly release sync</div>
+        <div id="tiles">
+          <div class="tile"><div class="av" style="background:#f59e0b">A</div><div class="nm">Anna</div><div class="ring" id="ring0"></div></div>
+          <div class="tile"><div class="av" style="background:#10b981">P</div><div class="nm">Pēteris</div><div class="ring" id="ring1"></div></div>
+          <div class="tile"><div class="av" style="background:#ec4899">M</div><div class="nm">Maria</div><div class="ring" id="ring2"></div></div>
+          <div class="tile"><div class="av" style="background:#6366f1">J</div><div class="nm">You</div><div class="ring" id="ring3"></div></div>
+        </div>
+        <div id="tools"><div class="tool">🎙</div><div class="tool">📷</div><div class="tool">🖥</div><div class="tool leave" id="leave">Leave</div></div>
+      </div>
+      <div id="card">
+        <img src="../../app/icon/icon_1024.png" alt="">
+        <div style="flex:1"><div class="t1">Teams call detected</div><div class="t2">Take notes for this meeting?</div></div>
+        <div class="btn ghost">Not now</div><div class="btn primary" id="startbtn">Start notes</div>
+      </div>
+      <div id="pill"><span class="dot" id="pdot"></span><span id="ptext">Recording</span><span class="time" id="ptime">00:00</span><span style="color:#6b6880;font-weight:500">· Teams</span><span class="btn stop">Stop</span></div>
+      <svg id="cursor" viewBox="0 0 24 24"><path d="M3 2l7 19 2.5-7.5L20 11z" fill="#fff" stroke="#111" stroke-width="1.4" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="caption" id="cap1">Spots your calls automatically<small>Teams · Zoom · Slack · Meet · Webex: one click to start</small></div>
+  </div>
+
+  <div id="trans" class="layer">
+    <div id="wave"></div>
+    <div id="lines">
+      <div class="tl" id="l0"><span class="ts">00:12</span><span class="who them">Them</span><span class="tx"><span class="txt" data-t="Нужно выпустить новую версию в четверг."></span><span class="lg">RU</span></span></div>
+      <div class="tl" id="l1"><span class="ts">00:19</span><span class="who me">Me</span><span class="tx"><span class="txt" data-t="Labi, es sagatavošu relīzes piezīmes."></span><span class="lg">LV</span></span></div>
+      <div class="tl" id="l2"><span class="ts">00:27</span><span class="who them">Them</span><span class="tx"><span class="txt" data-t="Anna, can you check the dashboard numbers?"></span><span class="lg">EN</span></span></div>
+    </div>
+    <div class="caption" id="cap2">Transcribed on your Mac<small>Audio never leaves your laptop · Latvian, English &amp; Russian</small></div>
+  </div>
+
+  <div id="notesL" class="layer">
+    <div id="notes">
+      <div class="eb">MEETING NOTES</div>
+      <h2>Release sync: Thursday launch</h2>
+      <div class="chips"><span>Mon 5 Oct, 10:02</span><span>29 min</span><span>Russian · Latvian · English</span><span>Summary by Claude</span></div>
+      <h3>SUMMARY</h3>
+      <p>The team agreed to ship the new version on Thursday. Release notes and a dashboard check are needed before launch.</p>
+      <h3>ACTION ITEMS</h3>
+      <div class="ai" id="a0"><span class="box"></span><span><b>Me:</b> Prepare the release notes (Wednesday)</span></div>
+      <div class="ai" id="a1"><span class="box"></span><span><b>Anna:</b> Verify the dashboard numbers (Wednesday)</span></div>
+      <div class="ai" id="a2"><span class="box"></span><span><b>Pēteris:</b> Deploy the build to the studio (Thursday)</span></div>
+    </div>
+    <div class="caption" id="cap3" style="bottom:90px">Clear notes in English, a minute after the call</div>
+  </div>
+
+  <div id="chatL" class="layer">
+    <div id="chat">
+      <div class="hd">Claude</div>
+      <div class="user"><span class="cmd">/meeting</span> <span id="utext" data-t="turn the action items into Jira tickets"></span></div>
+      <div class="reply" id="reply">
+        Drafted 3 tickets from <b>Release sync: Thursday launch</b>. Create them?
+        <div class="tk" id="k0"><span class="key">REL-142</span>Prepare the release notes<span class="as">Me · due Wed</span></div>
+        <div class="tk" id="k1"><span class="key">REL-143</span>Verify the dashboard numbers<span class="as">Anna · due Wed</span></div>
+        <div class="tk" id="k2"><span class="key">REL-144</span>Deploy the build to the studio<span class="as">Pēteris · due Thu</span></div>
+        <div class="actions" id="acts"><span class="btn ok">Create tickets</span><span class="btn ghost" style="background:#ecebe3">Draft Slack recap</span></div>
+      </div>
+    </div>
+    <div class="caption" id="cap4" style="bottom:90px">Follow up with Claude<small>Ask about any meeting · Jira tickets · Slack recaps · Confluence</small></div>
+  </div>
+
+  <div id="end" class="layer center">
+    <img src="../../app/icon/icon_1024.png" alt="">
+    <h1>Notetaker</h1>
+    <p>Free · private · runs on your Mac</p>
+    <div class="install">Install: paste <code>github.com/fridapirz/local-notetaker</code> into Claude</div>
+  </div>
+</div>
+
+<script>
+const DURATION = 20;
+const $ = id => document.getElementById(id);
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const out = x => 1 - Math.pow(1 - x, 3);
+const inout = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+const spring = x => 1 - Math.exp(-6 * x) * Math.cos(9 * x);   // slight overshoot
+const show = (t, a, b, c, d) => out(seg(t, a, b)) * (1 - inout(seg(t, c, d)));
+function set(el, o, tx = 0, ty = 0, s = 1) {
+  el.style.opacity = o; el.style.transform = `translate(${tx}px, ${ty}px) scale(${s})`;
+  el.style.visibility = o <= 0.001 ? 'hidden' : 'visible';
+}
+function type(el, p) { const s = el.dataset.t; el.textContent = s.slice(0, Math.round(s.length * clamp(p))); }
+
+// build menubar waveform + big waveform
+for (let i = 0; i < 6; i++) { const b = document.createElement('i'); $('mb-wave').appendChild(b); }
+for (let i = 0; i < 26; i++) { const b = document.createElement('i'); $('wave').appendChild(b); }
+
+function render(t) {
+  // 1. Title 0–3.2
+  const tv = 1 - inout(seg(t, 2.6, 3.2));
+  set($('title'), tv, 0, 0, 1 + 0.04 * seg(t, 2.6, 3.2));
+  set($('t-icon'), out(seg(t, 0, .7)), 0, 0, 0.6 + 0.4 * spring(seg(t, 0, .9)));
+  set($('t-h1'), out(seg(t, .3, 1.0)), 0, 40 * (1 - out(seg(t, .3, 1.0))));
+  set($('t-p'), out(seg(t, .6, 1.3)), 0, 30 * (1 - out(seg(t, .6, 1.3))));
+  [...$('langs').children].forEach((c, i) => set(c, out(seg(t, 1.1 + i * .18, 1.6 + i * .18)), 0, 0, 0.7 + 0.3 * spring(seg(t, 1.1 + i * .18, 1.8 + i * .18))));
+
+  // 2. Desktop 3.0–9.6
+  const dv = show(t, 3.0, 3.6, 9.2, 9.7);
+  set($('desk'), dv, 0, 60 * (1 - out(seg(t, 3.0, 3.7))), 0.96 + 0.04 * out(seg(t, 3.0, 3.7)));
+  [...$('mb-wave').children].forEach((b, i) => b.style.height = (6 + 10 * Math.abs(Math.sin(t * 6 + i))) + 'px');
+  const speaking = Math.floor(t * 1.3) % 3;
+  for (let i = 0; i < 4; i++) $('ring' + i).style.opacity = (t > 3.3 && t < 8.6 && i === speaking) ? 0.9 : 0;
+  const callFade = 1 - inout(seg(t, 8.5, 9.0));
+  $('call').style.opacity = callFade;
+  $('call').style.transform = `scale(${1 - 0.05 * seg(t, 8.5, 9.0)})`;
+  // card slides in at 4.0, button pressed 5.5, morphs to pill 5.7
+  const cardIn = out(seg(t, 4.0, 4.6));
+  const cardOut = seg(t, 5.65, 5.85);
+  set($('card'), cardIn * (1 - cardOut), 120 * (1 - cardIn), 0, 1 - 0.1 * cardOut);
+  $('startbtn').style.transform = `scale(${t > 5.45 && t < 5.62 ? 0.92 : 1})`;
+  const pillIn = out(seg(t, 5.75, 6.1));
+  set($('pill'), pillIn, 40 * (1 - pillIn), 0);
+  // timer runs fast (time-lapse), then "Making notes…"
+  const secs = t < 6 ? 0 : Math.min(29 * 60 + 12, Math.floor(Math.pow(seg(t, 6, 8.4), 1.4) * (29 * 60 + 12)));
+  const making = t > 8.8;
+  $('ptext').textContent = making ? 'Making notes…' : 'Recording';
+  $('ptime').textContent = making ? '' : `${String(Math.floor(secs / 60)).padStart(2, '0')}:${String(secs % 60).padStart(2, '0')}`;
+  $('pdot').style.background = making ? '#5b4cf0' : '#ef3b4f';
+  $('pdot').style.opacity = making ? (0.4 + 0.6 * Math.abs(Math.sin(t * 5))) : (0.5 + 0.5 * Math.abs(Math.cos(t * 3)));
+  $('pill').querySelector('.stop').style.display = making ? 'none' : '';
+  // cursor: to Start notes, click, then to Leave
+  const sb = { x: 1455, y: 92 }, lv = { x: 640, y: 700 };
+  let cx = 1250, cy = 520;
+  const m1 = inout(seg(t, 4.7, 5.4));
+  cx += (sb.x - cx) * m1; cy += (sb.y - cy) * m1;
+  const m2 = inout(seg(t, 7.6, 8.3));
+  cx += (lv.x - cx) * m2; cy += (lv.y - cy) * m2;
+  const press = (t > 5.45 && t < 5.62) || (t > 8.35 && t < 8.5);
+  set($('cursor'), t > 4.5 && t < 9 ? 1 : 0, cx, cy, press ? 0.85 : 1);
+  $('leave').style.transform = `scale(${t > 8.35 && t < 8.5 ? 0.92 : 1})`;
+  const c1 = show(t, 4.1, 4.6, 8.9, 9.3);
+  set($('cap1'), c1, 0, 20 * (1 - out(seg(t, 4.1, 4.6))));
+  if (t > 6.6) $('cap1').innerHTML = '…and records in the background<small>A small pill shows it\'s recording · stops by itself when the call ends</small>';
+  else $('cap1').innerHTML = 'Spots your calls automatically<small>Teams · Zoom · Slack · Meet · Webex: one click to start</small>';
+
+  // 3. Transcription 9.4–13.2
+  const trv = show(t, 9.4, 9.9, 12.8, 13.3);
+  set($('trans'), trv, 0, 40 * (1 - out(seg(t, 9.4, 10))));
+  [...$('wave').children].forEach((b, i) => {
+    const h = 30 + 240 * Math.abs(Math.sin(t * 4.2 + i * .55) * Math.cos(t * 1.7 + i * .23));
+    b.style.height = h + 'px';
+  });
+  ['l0', 'l1', 'l2'].forEach((id, i) => {
+    const a = 9.9 + i * .85;
+    set($(id), out(seg(t, a, a + .4)), 60 * (1 - out(seg(t, a, a + .4))), 0);
+    type($(id).querySelector('.txt'), seg(t, a + .1, a + .8));
+  });
+  set($('cap2'), show(t, 9.8, 10.3, 12.8, 13.3), 0, 0);
+
+  // 4. Notes 13.0–16.6
+  const nv = show(t, 13.0, 13.6, 16.2, 16.7);
+  set($('notesL'), nv, 0, 0);
+  set($('notes'), 1, 0, 90 * (1 - out(seg(t, 13.0, 13.7))), 0.97 + 0.03 * out(seg(t, 13.0, 13.7)));
+  ['a0', 'a1', 'a2'].forEach((id, i) => {
+    const a = 13.9 + i * .3;
+    set($(id), out(seg(t, a, a + .35)), 30 * (1 - out(seg(t, a, a + .35))), 0);
+    const tick = t > 14.9 + i * .35;
+    const box = $(id).querySelector('.box');
+    box.style.background = tick ? '#5b4cf0' : 'transparent';
+    box.textContent = tick ? '✓' : '';
+  });
+  set($('cap3'), show(t, 13.4, 13.9, 16.2, 16.7), 0, 0);
+
+  // 5. Claude 16.4–18.7
+  const cv = show(t, 16.4, 16.9, 18.4, 18.8);
+  set($('chatL'), cv, 0, 0);
+  set($('chat'), 1, 0, 70 * (1 - out(seg(t, 16.4, 17.0))));
+  type($('utext'), seg(t, 16.8, 17.5));
+  set($('reply'), out(seg(t, 17.6, 17.9)), 0, 20 * (1 - out(seg(t, 17.6, 17.9))));
+  ['k0', 'k1', 'k2'].forEach((id, i) => set($(id), out(seg(t, 17.75 + i * .15, 18.05 + i * .15)), 0, 16 * (1 - out(seg(t, 17.75 + i * .15, 18.05 + i * .15)))));
+  set($('acts'), out(seg(t, 18.1, 18.3)), 0, 0);
+  set($('cap4'), show(t, 16.6, 17.0, 18.4, 18.8), 0, 0);
+
+  // 6. End 18.7–20
+  const ev = out(seg(t, 18.7, 19.2));
+  set($('end'), ev, 0, 30 * (1 - ev), 0.97 + 0.03 * ev);
+}
+
+window.render = render;
+window.DURATION = DURATION;
+// Live preview (when not being captured frame by frame)
+if (!location.search.includes('capture')) {
+  const t0 = performance.now();
+  (function loop() { render(((performance.now() - t0) / 1000) % DURATION); requestAnimationFrame(loop); })();
+} else {
+  render(0);
+}
+</script>
+</body>
+</html>
