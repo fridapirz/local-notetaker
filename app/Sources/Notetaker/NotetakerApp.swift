@@ -154,7 +154,7 @@ final class AppState: ObservableObject {
             Who you are, your team, projects and names that come up often.
             Claude and the local model read this before summarizing.
 
-            Example: I'm on the JAM team (Riga). Projects: Disco Balls, Funky Time, 4 Bonus Roulette.
+            Example: I'm a product manager on the payments team. Projects: Checkout v2, Mobile app. People: Anna (QA), Pēteris (backend).
 
             """.write(to: url, atomically: true, encoding: .utf8)
         }

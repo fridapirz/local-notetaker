@@ -33,6 +33,15 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/pipeline"
 cp build/Notetaker "$APP/Contents/MacOS/Notetaker"
 cp app/Info.plist "$APP/Contents/Info.plist"
+
+# App icon: app/icon/icon_1024.png (regenerate with app/icon/make-icon.swift) → AppIcon.icns
+ICONSET=build/AppIcon.iconset
+rm -rf "$ICONSET"; mkdir -p "$ICONSET"
+for s in 16 32 128 256 512; do
+  sips -z $s $s app/icon/icon_1024.png --out "$ICONSET/icon_${s}x${s}.png" >/dev/null
+  sips -z $((s*2)) $((s*2)) app/icon/icon_1024.png --out "$ICONSET/icon_${s}x${s}@2x.png" >/dev/null
+done
+iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 rsync -a --exclude .venv --exclude __pycache__ --exclude uv.lock pipeline/ "$APP/Contents/Resources/pipeline/"
 [ -f pipeline/uv.lock ] && cp pipeline/uv.lock "$APP/Contents/Resources/pipeline/"
 
