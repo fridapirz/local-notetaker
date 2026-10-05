@@ -10,7 +10,7 @@ LOCAL_MODEL = os.environ.get("NOTETAKER_LOCAL_MODEL", "mlx-community/Qwen3-14B-4
 CLAUDE_MODEL = os.environ.get("NOTETAKER_CLAUDE_MODEL", "")  # empty = Claude Code default
 
 PROMPT = """You are writing meeting notes from an automatic transcript.
-The transcript mixes Latvian and English. "Me" is the person who recorded it; "Them" is everyone
+The transcript may mix Latvian, English and Russian. "Me" is the person who recorded it; "Them" is everyone
 else on the call (several people may be merged under "Them"). Transcription errors are likely,
 especially for names and product terms — correct them when the context makes it obvious.
 {context}

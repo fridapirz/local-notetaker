@@ -1,4 +1,4 @@
-"""Local transcription: energy VAD -> <=28s chunks -> per-chunk LV/EN detection -> Whisper (MLX)."""
+"""Local transcription: energy VAD -> <=28s chunks -> per-chunk LV/EN/RU detection -> Whisper (MLX)."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from mlx_whisper.transcribe import ModelHolder
 from scipy.signal import resample_poly
 
 WHISPER_MODEL = os.environ.get("NOTETAKER_WHISPER_MODEL", "mlx-community/whisper-large-v3-mlx")
-LANGUAGES = os.environ.get("NOTETAKER_LANGUAGES", "lv,en").split(",")
+LANGUAGES = os.environ.get("NOTETAKER_LANGUAGES", "lv,en,ru").split(",")
 
 FRAME = int(0.03 * SAMPLE_RATE)  # 30 ms VAD frames
 MAX_CHUNK_S = 28.0
@@ -68,13 +68,13 @@ def chunks_from_regions(regions: list[tuple[float, float]]) -> list[tuple[float,
     return [(a, b) for a, b in chunks]
 
 
-def detect_language(audio: np.ndarray) -> str:
-    """Pick the most likely language among LANGUAGES (Whisper's own detector, restricted)."""
+def detect_language(audio: np.ndarray, languages: list[str] | None = None) -> str:
+    """Pick the most likely language among `languages` (Whisper's own detector, restricted)."""
     model = ModelHolder.get_model(WHISPER_MODEL, mx.float16)
     mel = log_mel_spectrogram(audio, n_mels=model.dims.n_mels)
     mel = pad_or_trim(mel, N_FRAMES, axis=-2).astype(mx.float16)
     _, probs = model.detect_language(mel)
-    return max(LANGUAGES, key=lambda lang: probs.get(lang, 0.0))
+    return max(languages or LANGUAGES, key=lambda lang: probs.get(lang, 0.0))
 
 
 HALLUCINATIONS = (
@@ -84,11 +84,17 @@ HALLUCINATIONS = (
     "thanks for watching",
     "subtitles by",
     "subtitri",
+    "субтитры сделал",
+    "субтитры создавал",
+    "редактор субтитров",
+    "продолжение следует",
+    "спасибо за просмотр",
+    "dimatorzok",
 )
 
 
 def transcribe_track(path: str, speaker: str, offset: float, progress=None,
-                     vocabulary: list[str] | None = None) -> list[dict]:
+                     vocabulary: list[str] | None = None, languages: list[str] | None = None) -> list[dict]:
     audio = load_audio(path)
     hint = ", ".join(vocabulary) if vocabulary else None
     chunks = chunks_from_regions(speech_regions(audio))
@@ -97,7 +103,7 @@ def transcribe_track(path: str, speaker: str, offset: float, progress=None,
         if progress:
             progress(i, len(chunks))
         piece = audio[int(max(0, a - 0.2) * SAMPLE_RATE) : int((b + 0.2) * SAMPLE_RATE)]
-        lang = detect_language(piece)
+        lang = detect_language(piece, languages)
         result = whisper_transcribe(
             piece,
             path_or_hf_repo=WHISPER_MODEL,

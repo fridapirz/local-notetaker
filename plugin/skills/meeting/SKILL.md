@@ -6,7 +6,7 @@ description: Work with meetings recorded by the Notetaker menu bar app — start
 # Meeting notes (Notetaker)
 
 The Notetaker app records a call (system audio = **Them**, microphone = **Me**), transcribes it on-device with
-Whisper (Latvian + English), and writes a Markdown note. You work with those notes.
+Whisper (Latvian + English + Russian), and writes a Markdown note. You work with those notes.
 
 ## Where things are
 
@@ -31,7 +31,7 @@ archive. **Never write shell loops or `ls` parsing over the notes folder.** Fold
 - `notetaker list [-n 20]`: one JSON object per line, newest first: `folder`, `notes`, `title`, `date`,
   `duration_min`, `summary_by`, `pending`
 - `notetaker pending`: folders whose summary is still waiting
-- `notetaker process "<folder>" [--mode claude|local] [--language Latvian] [--retranscribe]`: re-run a session
+- `notetaker process "<folder>" [--mode claude|local] [--language Latvian|Russian] [--retranscribe]`: re-run a session
 - `notetaker finish "<folder>" --summary-file "<file>"`: insert a summary you wrote
 - `notetaker html "<folder>"` / `notetaker html --all`: re-render `notes.html` after editing `notes.md`
 - To show the user a meeting, run `open "<folder>/notes.html"`. It opens a formatted page in their browser.

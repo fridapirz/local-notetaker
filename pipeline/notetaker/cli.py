@@ -24,6 +24,7 @@ DEFAULT_CONFIG = {
     "notes_dir": "~/Notes/meetings",
     "summary_language": "English",
     "vocabulary": [],
+    "languages": ["lv", "en", "ru"],
 }
 
 
@@ -66,7 +67,7 @@ def render_transcript(segments: list[dict]) -> str:
     return "\n\n".join(f"**[{ts(l['start'])}] {l['speaker']}:** {l['text']}" for l in lines)
 
 
-def transcribe_session(session: Path, vocabulary: list[str]) -> list[dict]:
+def transcribe_session(session: Path, vocabulary: list[str], languages: list[str] | None = None) -> list[dict]:
     from .transcribe import drop_echo, transcribe_track
 
     meta = json.loads((session / "meta.json").read_text())
@@ -82,7 +83,7 @@ def transcribe_session(session: Path, vocabulary: list[str]) -> list[dict]:
             status(f"Transcribing {speaker.lower()} {i + 1}/{n}")
 
         by_track[name] = transcribe_track(str(session / track["file"]), speaker, track.get("offset", 0.0),
-                                          progress, vocabulary)
+                                          progress, vocabulary, languages)
     if "mic" in by_track and "system" in by_track:
         by_track["mic"] = drop_echo(by_track["mic"], by_track["system"])
     segments = sorted((s for segs in by_track.values() for s in segs), key=lambda s: s["start"])
@@ -108,7 +109,7 @@ def load_segments(session: Path, cfg: dict) -> list[dict]:
     if transcript_file.exists():
         return json.loads(transcript_file.read_text())
     status("Transcribing…")
-    return transcribe_session(session, cfg.get("vocabulary", []))
+    return transcribe_session(session, cfg.get("vocabulary", []), cfg.get("languages"))
 
 
 def write_notes(session: Path, notes: str, summary_by: str, segments: list[dict], rename: bool) -> Path:
@@ -222,7 +223,7 @@ def main() -> None:
     pr = sub.add_parser("process", help="transcribe + summarize a recorded session folder")
     pr.add_argument("session")
     pr.add_argument("--mode", choices=["claude", "local"], default="claude")
-    pr.add_argument("--language", help="summary language, e.g. English or Latvian")
+    pr.add_argument("--language", help="summary language, e.g. English, Latvian or Russian")
     pr.add_argument("--retranscribe", action="store_true", help="ignore cached transcript.json")
     fi = sub.add_parser("finish", help="insert an externally written summary into a pending session")
     fi.add_argument("session")

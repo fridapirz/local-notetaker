@@ -5,7 +5,7 @@
     {
       "name": "notetaker",
       "source": "./plugin",
-      "description": "Local meeting note taker: menu bar recorder + on-device Whisper (LV/EN) + Claude summaries and follow-ups."
+      "description": "Local meeting note taker: menu bar recorder + on-device Whisper (LV/EN/RU) + Claude summaries and follow-ups."
     }
   ]
 }
