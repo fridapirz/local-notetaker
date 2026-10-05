@@ -113,13 +113,14 @@ final class AppState: ObservableObject {
         phase = .processing("Starting…")
         Task {
             do {
-                let notes = try await Pipeline.process(session: session, mode: mode) { status in
+                let (notes, finished) = try await Pipeline.process(session: session, mode: mode) { status in
                     Task { @MainActor in self.phase = .processing(status) }
                 }
                 lastSession = notes.deletingLastPathComponent()
                 phase = .idle
                 recent = Pipeline.recentNotes()
-                NSWorkspace.shared.open(notes)
+                // Pending = Claude Desktop's scheduled task will add the summary (and notify).
+                if finished { NSWorkspace.shared.open(notes) }
             } catch {
                 fail(error.localizedDescription)
             }

@@ -100,63 +100,90 @@ def notify(title: str, body: str) -> None:
     subprocess.run(["osascript", "-e", script], capture_output=True)
 
 
-def process(session: Path, mode: str, language: str | None) -> Path:
-    from .summarize import build_prompt, summarize_claude, summarize_local
+PENDING_MARKER = "<!-- notetaker:pending-summary -->"
 
-    cfg = load_config()
-    language = language or cfg["summary_language"]
-    t0 = time.time()
 
+def load_segments(session: Path, cfg: dict) -> list[dict]:
     transcript_file = session / "transcript.json"
     if transcript_file.exists():
-        segments = json.loads(transcript_file.read_text())
-    else:
-        status("Transcribing…")
-        segments = transcribe_session(session, cfg.get("vocabulary", []))
-    if not segments:
-        raise RuntimeError("No speech detected in the recording")
+        return json.loads(transcript_file.read_text())
+    status("Transcribing…")
+    return transcribe_session(session, cfg.get("vocabulary", []))
 
-    transcript = render_transcript(segments)
-    status("Summarizing with Claude…" if mode == "claude" else "Summarizing locally…")
-    prompt = build_prompt(transcript, language, cfg["context"])
-    summary_ok = True
-    try:
-        notes = summarize_claude(prompt) if mode == "claude" else summarize_local(prompt)
-    except Exception as e:  # keep the transcript even if the summary step fails
-        print(f"summary failed: {e}", file=sys.stderr)
-        summary_ok = False
-        notes = f"# Meeting\n\n> Summary failed ({mode}): {e}\n> Retry from the menu bar, or: `notetaker process \"{session}\"`"
 
+def write_notes(session: Path, notes: str, summary_by: str, segments: list[dict], rename: bool) -> Path:
+    """Assemble notes.md (frontmatter + summary + transcript); optionally rename folder to the title."""
     m = re.search(r"^#\s+(.+)$", notes, re.M)
     title = safe_title(m.group(1) if m else "Meeting")
     meta = json.loads((session / "meta.json").read_text())
     started = datetime.fromisoformat(meta["started"].replace("Z", "+00:00")).astimezone()
     duration = max(s["end"] for s in segments)
     langs = sorted({s["lang"] for s in segments})
-
     doc = (
         "---\n"
         f"title: {json.dumps(title, ensure_ascii=False)}\n"
         f"date: {started.isoformat(timespec='minutes')}\n"
         f"duration_min: {round(duration / 60)}\n"
         f"languages: [{', '.join(langs)}]\n"
-        f"summary_by: {mode}\n"
+        f"summary_by: {summary_by}\n"
         "---\n\n"
-        f"{notes}\n\n---\n\n## Transcript\n\n{transcript}\n"
+        f"{notes}\n\n---\n\n## Transcript\n\n{render_transcript(segments)}\n"
     )
     (session / "notes.md").write_text(doc)
 
     # Rename the session folder to "<date time> – <title>" so the archive is browsable.
     target = session.parent / f"{started:%Y-%m-%d %H%M} – {title}"
-    renameable = session.name == f"{started:%Y-%m-%d %H%M}"
-    if summary_ok and renameable and not target.exists():
+    if rename and session.name == f"{started:%Y-%m-%d %H%M}" and not target.exists():
         session.rename(target)
         session = target
-    status(f"Done in {int(time.time() - t0)}s")
-    if not summary_ok:
-        raise RuntimeError(f"Transcript saved, but the {mode} summary failed — see {session / 'pipeline.log'}")
-    notify("Meeting notes ready", title)
     return session / "notes.md"
+
+
+def process(session: Path, mode: str, language: str | None) -> tuple[Path, bool]:
+    """Returns (notes.md, finished). finished=False means the summary was handed to Claude Desktop."""
+    from .summarize import build_prompt, summarize_claude, summarize_local
+
+    cfg = load_config()
+    language = language or cfg["summary_language"]
+    t0 = time.time()
+    segments = load_segments(session, cfg)
+    if not segments:
+        raise RuntimeError("No speech detected in the recording")
+
+    prompt = build_prompt(render_transcript(segments), language, cfg["context"])
+    status("Summarizing with Claude…" if mode == "claude" else "Summarizing locally…")
+    try:
+        notes = summarize_claude(prompt) if mode == "claude" else summarize_local(prompt)
+    except Exception as e:
+        print(f"summary failed: {e}", file=sys.stderr)
+        if mode != "claude":
+            raise RuntimeError(f"Local summary failed: {e}") from e
+        # CLI not logged in / unavailable: queue for the Claude Desktop scheduled task.
+        (session / "summary_request.md").write_text(prompt)
+        notes = (f"# Meeting\n\n{PENDING_MARKER}\n> Summary pending — Claude Desktop will add it shortly "
+                 "(scheduled task \"Meeting notes\"). The transcript is below.")
+        path = write_notes(session, notes, "pending", segments, rename=False)
+        status("Transcript ready — Claude Desktop will summarize")
+        notify("Transcript ready", "Claude Desktop will add the summary shortly")
+        return path, False
+
+    path = write_notes(session, notes, mode, segments, rename=True)
+    status(f"Done in {int(time.time() - t0)}s")
+    notify("Meeting notes ready", path.parent.name)
+    return path, True
+
+
+def finish(session: Path, summary_file: Path, summary_by: str) -> Path:
+    """Insert a summary written elsewhere (e.g. by Claude Desktop) into a pending session."""
+    segments = json.loads((session / "transcript.json").read_text())
+    path = write_notes(session, summary_file.read_text().strip(), summary_by, segments, rename=True)
+    (path.parent / "summary_request.md").unlink(missing_ok=True)
+    notify("Meeting notes ready", path.parent.name)
+    return path
+
+
+def pending(notes_dir: Path) -> list[Path]:
+    return sorted(p.parent for p in notes_dir.glob("*/summary_request.md"))
 
 
 def main() -> None:
@@ -167,6 +194,11 @@ def main() -> None:
     pr.add_argument("--mode", choices=["claude", "local"], default="claude")
     pr.add_argument("--language", help="summary language, e.g. English or Latvian")
     pr.add_argument("--retranscribe", action="store_true", help="ignore cached transcript.json")
+    fi = sub.add_parser("finish", help="insert an externally written summary into a pending session")
+    fi.add_argument("session")
+    fi.add_argument("--summary-file", required=True)
+    fi.add_argument("--by", default="claude-desktop")
+    sub.add_parser("pending", help="list sessions waiting for a summary")
     sub.add_parser("config", help="print config paths")
     args = p.parse_args()
 
@@ -175,15 +207,22 @@ def main() -> None:
         print(f"config:  {CONFIG_DIR / 'config.json'}\ncontext: {CONFIG_DIR / 'context.md'}\nnotes:   {cfg['notes_dir']}")
         return
 
+    if args.cmd == "pending":
+        for d in pending(Path(os.path.expanduser(load_config()["notes_dir"]))):
+            print(d)
+        return
     session = Path(args.session).expanduser().resolve()
+    if args.cmd == "finish":
+        print(f"DONE: {finish(session, Path(args.summary_file).expanduser(), args.by)}")
+        return
     if args.retranscribe:
         (session / "transcript.json").unlink(missing_ok=True)
     try:
-        notes = process(session, args.mode, args.language)
+        notes, finished = process(session, args.mode, args.language)
     except Exception as e:
         print(f"ERROR: {e}", flush=True)
         sys.exit(1)
-    print(f"DONE: {notes}", flush=True)
+    print(f"{'DONE' if finished else 'PENDING'}: {notes}", flush=True)
 
 
 if __name__ == "__main__":

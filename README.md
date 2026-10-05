@@ -10,6 +10,8 @@ you get a summary in Markdown.
   restricted to **Latvian / English**, so switching languages mid-call works.
 - **Summary:** **Claude** (through your Claude Code login; only the transcript text is sent) or **local**
   Qwen3-14B (nothing leaves the laptop). You choose when you stop the recording.
+- **Claude Desktop:** if the `claude` CLI isn't logged in, the transcript is queued. The "Meeting notes"
+  scheduled task in the Claude desktop app writes the summary within 15 minutes (weekdays 9–19).
 - **Follow-ups:** the `/meeting` skill in Claude Code / Cowork answers questions across past meetings and
   drafts Jira tickets, Confluence pages and Slack recaps.
 

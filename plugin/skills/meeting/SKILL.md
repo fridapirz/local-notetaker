@@ -31,6 +31,13 @@ Whisper (Latvian + English), and writes a Markdown note. You work with those not
   `uv run --project "$HOME/Applications/Notetaker.app/Contents/Resources/pipeline" notetaker process "<session dir>" --mode claude [--language Latvian]`.
   Set `UV_PROJECT_ENVIRONMENT="$HOME/Library/Application Support/Notetaker/venv"` so it reuses the app's environment.
 
+**Pending summaries:** if the `claude` CLI isn't logged in, the app saves the transcript and writes
+`summary_request.md` (a ready-made prompt) into the session; `notes.md` then has `summary_by: pending`. The
+"Meeting notes" scheduled task in Claude Desktop summarizes these every 15 minutes on weekdays. To do one
+right away: read `summary_request.md`, follow it, write the result to `<session>/summary.md`, then run
+`notetaker finish "<session>" --summary-file "<session>/summary.md"` (same `uv run` prefix as above).
+List pending sessions with `notetaker pending`.
+
 If the app isn't installed (`~/Applications/Notetaker.app` is missing), use the `notetaker-setup` skill.
 
 ## What to do

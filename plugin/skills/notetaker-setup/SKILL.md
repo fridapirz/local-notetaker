@@ -12,9 +12,10 @@ Requirements: an Apple Silicon Mac on macOS 15 or later, and about 12 GB of free
    - Xcode Command Line Tools: `xcode-select -p`. If missing, the user runs `xcode-select --install`.
    - uv: check `~/.local/bin/uv` or `command -v uv`. If missing, ask, then run
      `curl -LsSf https://astral.sh/uv/install.sh | sh`.
-   - Claude CLI login: running `echo ok | claude -p` must succeed. If it reports an expired or missing login,
-     the user runs `claude` in Terminal and types `/login` (you can't log in for them). Without a working
-     login only the "Summarize Locally" mode works.
+   - Claude summaries: if `echo ok | claude -p` works, summaries happen immediately. If it doesn't, offer to
+     create a Claude Desktop scheduled task named "Meeting notes" (`*/15 9-19 * * 1-5`) that summarizes pending
+     sessions using the procedure in the `meeting` skill ("Pending summaries"). This uses the desktop app's
+     login, so the user never needs a terminal.
 2. **Get the source.** If `~/code/local-notetaker` doesn't exist, ask the user for the repository URL and
    clone it there. If it exists, run `git -C ~/code/local-notetaker pull`.
 3. **Build and install:** `~/code/local-notetaker/scripts/build-app.sh`. This builds the app and installs it

@@ -35,8 +35,8 @@ enum Pipeline {
         return support.appendingPathComponent("Notetaker/venv")
     }
 
-    /// Returns the path to notes.md on success.
-    static func process(session: URL, mode: String, onStatus: @escaping @Sendable (String) -> Void) async throws -> URL {
+    /// Returns notes.md and whether the summary is done (false = queued for Claude Desktop).
+    static func process(session: URL, mode: String, onStatus: @escaping @Sendable (String) -> Void) async throws -> (URL, Bool) {
         guard let uv = uvPath else {
             throw err("uv not found — install with: curl -LsSf https://astral.sh/uv/install.sh | sh")
         }
@@ -63,12 +63,17 @@ enum Pipeline {
         return try await Task.detached {
             try proc.run()
             var done: URL?
+            var finished = true
             var failure: String?
             var buffer = Data()
             let reader = out.fileHandleForReading
             func handle(_ line: String) {
                 if line.hasPrefix("STATUS: ") { onStatus(String(line.dropFirst(8))) }
                 else if line.hasPrefix("DONE: ") { done = URL(fileURLWithPath: String(line.dropFirst(6))) }
+                else if line.hasPrefix("PENDING: ") {
+                    done = URL(fileURLWithPath: String(line.dropFirst(9)))
+                    finished = false
+                }
                 else if line.hasPrefix("ERROR: ") { failure = String(line.dropFirst(7)) }
             }
             while true {
@@ -81,7 +86,7 @@ enum Pipeline {
                 }
             }
             proc.waitUntilExit()
-            if let done, proc.terminationStatus == 0 { return done }
+            if let done, proc.terminationStatus == 0 { return (done, finished) }
             throw err(failure ?? "pipeline exited \(proc.terminationStatus) — see \(logURL.path)")
         }.value
     }
