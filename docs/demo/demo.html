@@ -95,6 +95,9 @@
   #chat .actions { display: flex; gap: 14px; margin-top: 22px; }
   #chat .actions .btn { font-size: 21px; padding: 13px 24px; }
   #chat .actions .ok { background: #c96442; color: #fff; }
+  .tk .state { width: 0; overflow: hidden; white-space: nowrap; color: #15803d; font-weight: 700; font-size: 20px; margin-left: 0; }
+  #created { margin-top: 20px; font-size: 25px; color: #15803d; font-weight: 600; }
+  #chatcursor { position: absolute; width: 34px; height: 34px; left: 0; top: 0; }
 
   /* End card */
   #end img { width: 170px; height: 170px; filter: drop-shadow(0 30px 60px rgba(91,76,240,.5)); }
@@ -169,12 +172,14 @@
       <div class="user"><span class="cmd">/meeting</span> <span id="utext" data-t="turn the action items into Jira tickets"></span></div>
       <div class="reply" id="reply">
         Drafted 3 tickets from <b>Release sync: Thursday launch</b>. Create them?
-        <div class="tk" id="k0"><span class="key">REL-142</span>Prepare the release notes<span class="as">Me · due Wed</span></div>
-        <div class="tk" id="k1"><span class="key">REL-143</span>Verify the dashboard numbers<span class="as">Anna · due Wed</span></div>
-        <div class="tk" id="k2"><span class="key">REL-144</span>Deploy the build to the studio<span class="as">Pēteris · due Thu</span></div>
-        <div class="actions" id="acts"><span class="btn ok">Create tickets</span><span class="btn ghost" style="background:#ecebe3">Draft Slack recap</span></div>
+        <div class="tk" id="k0"><span class="key">REL-142</span>Prepare the release notes<span class="as">Me · due Wed</span><span class="state" id="s0">✓ Created</span></div>
+        <div class="tk" id="k1"><span class="key">REL-143</span>Verify the dashboard numbers<span class="as">Anna · due Wed</span><span class="state" id="s1">✓ Created</span></div>
+        <div class="tk" id="k2"><span class="key">REL-144</span>Deploy the build to the studio<span class="as">Pēteris · due Thu</span><span class="state" id="s2">✓ Created</span></div>
+        <div class="actions" id="acts"><span class="btn ok" id="createbtn">Create tickets</span><span class="btn ghost" style="background:#ecebe3">Draft Slack recap</span></div>
+        <div id="created">✓ Created 3 tickets in Jira and assigned the owners.</div>
       </div>
     </div>
+    <svg id="chatcursor" viewBox="0 0 24 24"><path d="M3 2l7 19 2.5-7.5L20 11z" fill="#fff" stroke="#111" stroke-width="1.4" stroke-linejoin="round"/></svg>
     <div class="caption" id="cap4" style="bottom:90px">Follow up with Claude<small>Ask about any meeting · Jira tickets · Slack recaps · Confluence</small></div>
   </div>
 
@@ -205,7 +210,16 @@ function type(el, p) { const s = el.dataset.t; el.textContent = s.slice(0, Math.
 for (let i = 0; i < 6; i++) { const b = document.createElement('i'); $('mb-wave').appendChild(b); }
 for (let i = 0; i < 26; i++) { const b = document.createElement('i'); $('wave').appendChild(b); }
 
-function render(t) {
+const KNOTS = [[0, 0], [14.6, 16.4], [18.7, 19.8], [20, 21.3]];  // [real, story]
+function story(real) {
+  for (let i = 1; i < KNOTS.length; i++) {
+    const [r0, s0] = KNOTS[i - 1], [r1, s1] = KNOTS[i];
+    if (real <= r1) return s0 + (s1 - s0) * (real - r0) / (r1 - r0);
+  }
+  return KNOTS[KNOTS.length - 1][1];
+}
+function render(real) {
+  const t = story(real);
   // 1. Title 0–3.2
   const tv = 1 - inout(seg(t, 2.6, 3.2));
   set($('title'), tv, 0, 0, 1 + 0.04 * seg(t, 2.6, 3.2));
@@ -282,17 +296,29 @@ function render(t) {
   set($('cap3'), show(t, 13.4, 13.9, 16.2, 16.7), 0, 0);
 
   // 5. Claude 16.4–18.7
-  const cv = show(t, 16.4, 16.9, 18.4, 18.8);
+  const cv = show(t, 16.4, 16.9, 19.5, 19.9);
   set($('chatL'), cv, 0, 0);
   set($('chat'), 1, 0, 70 * (1 - out(seg(t, 16.4, 17.0))));
   type($('utext'), seg(t, 16.8, 17.5));
   set($('reply'), out(seg(t, 17.6, 17.9)), 0, 20 * (1 - out(seg(t, 17.6, 17.9))));
   ['k0', 'k1', 'k2'].forEach((id, i) => set($(id), out(seg(t, 17.75 + i * .15, 18.05 + i * .15)), 0, 16 * (1 - out(seg(t, 17.75 + i * .15, 18.05 + i * .15)))));
   set($('acts'), out(seg(t, 18.1, 18.3)), 0, 0);
-  set($('cap4'), show(t, 16.6, 17.0, 18.4, 18.8), 0, 0);
+  set($('cap4'), show(t, 16.6, 17.0, 19.5, 19.9), 0, 0);
+  // click "Create tickets" → each ticket flips to Created
+  const cb = $('createbtn').getBoundingClientRect();
+  const m = inout(seg(t, 18.35, 18.75));
+  const bx = cb.left + cb.width * 0.55, by = cb.top + cb.height * 0.6;
+  set($('chatcursor'), (t > 18.3 && t < 19.5) ? 1 : 0, 1500 + (bx - 1500) * m, 900 + (by - 900) * m, (t > 18.8 && t < 18.95) ? 0.85 : 1);
+  $('createbtn').style.transform = `scale(${t > 18.8 && t < 18.95 ? 0.93 : 1})`;
+  $('createbtn').style.opacity = t > 19.0 ? 0.45 : 1;
+  ['s0', 's1', 's2'].forEach((id, i) => {
+    const p = out(seg(t, 19.0 + i * .12, 19.25 + i * .12));
+    $(id).style.width = (130 * p) + 'px'; $(id).style.marginLeft = (14 * p) + 'px'; $(id).style.opacity = p;
+  });
+  set($('created'), out(seg(t, 19.3, 19.5)), 0, 10 * (1 - out(seg(t, 19.3, 19.5))));
 
   // 6. End 18.7–20
-  const ev = out(seg(t, 18.7, 19.2));
+  const ev = out(seg(t, 19.8, 20.3));
   set($('end'), ev, 0, 30 * (1 - ev), 0.97 + 0.03 * ev);
 }
 
