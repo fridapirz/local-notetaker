@@ -41,15 +41,57 @@ final class AppState: ObservableObject {
     @Published var elapsed = "0:00"
     @Published var recent: [URL] = Pipeline.recentNotes()
     @Published var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @Published var detectedApp: String?
+    @Published var autoDetect = UserDefaults.standard.object(forKey: "autoDetect") as? Bool ?? true
 
     private let recorder = Recorder()
+    private let detector = MeetingDetector()
     private var timer: Timer?
     private var lastSession: URL?
+    /// Auto-stop only recordings that actually covered a call (not e.g. a manual voice memo).
+    private var recordingSawCall = false
 
     init() {
         recorder.onError = { [weak self] error in
             Task { @MainActor in self?.fail("Recording error: \(error.localizedDescription)") }
         }
+        Notifier.shared.setup()
+        detector.onMeetingStarted = { [weak self] app in self?.meetingStarted(app) }
+        detector.onMeetingEnded = { [weak self] in self?.meetingEnded() }
+        if autoDetect { detector.start() }
+    }
+
+    // MARK: Meeting detection
+
+    private func meetingStarted(_ app: String) {
+        detectedApp = app
+        switch phase {
+        case .recording: recordingSawCall = true
+        case .idle, .failed: Notifier.shared.meetingDetected(in: app)
+        case .processing: break
+        }
+    }
+
+    private func meetingEnded() {
+        detectedApp = nil
+        Notifier.shared.clearMeetingPrompt()
+        if case .recording = phase, recordingSawCall {
+            Notifier.shared.info("Call ended", "Stopped recording — making your notes…")
+            stop(mode: "claude")
+        }
+    }
+
+    func startFromDetection() {
+        switch phase {
+        case .idle, .failed: start()
+        default: break
+        }
+    }
+
+    func toggleAutoDetect() {
+        autoDetect.toggle()
+        UserDefaults.standard.set(autoDetect, forKey: "autoDetect")
+        if autoDetect { detector.start() } else { detector.stop(); detectedApp = nil }
     }
 
     func handle(_ url: URL) {
@@ -70,6 +112,8 @@ final class AppState: ObservableObject {
         Task {
             do {
                 try await recorder.start(in: dir)
+                recordingSawCall = detector.inCall
+                Notifier.shared.clearMeetingPrompt()
                 let started = Date()
                 phase = .recording(started)
                 elapsed = "0:00"
@@ -168,7 +212,11 @@ struct MenuContent: View {
     var body: some View {
         switch state.phase {
         case .idle:
-            Button("Start Recording") { state.start() }
+            if let app = state.detectedApp {
+                Button("Start Notes for \(app) Call") { state.start() }
+            } else {
+                Button("Start Recording") { state.start() }
+            }
         case .recording:
             Text("Recording — \(state.elapsed)")
             Button("Stop & Summarize with Claude") { state.stop(mode: "claude") }
@@ -199,6 +247,7 @@ struct MenuContent: View {
         }
         Button("Edit Context & Names…") { state.openContext() }
         Divider()
+        Toggle("Detect Meetings", isOn: Binding(get: { state.autoDetect }, set: { _ in state.toggleAutoDetect() }))
         Toggle("Launch at Login", isOn: Binding(get: { state.launchAtLogin }, set: { _ in state.toggleLaunchAtLogin() }))
         Button("Quit Notetaker") { NSApp.terminate(nil) }.keyboardShortcut("q")
     }

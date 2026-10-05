@@ -31,6 +31,13 @@ after granting the second one.
 
 ## Use
 
+**Meeting detection:** when a call app (Teams, Zoom, Slack, Webex, FaceTime, or a browser for Meet) uses the
+mic for more than 8 seconds, a notification asks *"Meeting detected in Teams — take notes?"*. Click
+**Start Notes**. When the call app releases the mic for a minute, recording stops and notes are made
+automatically. It works by checking which apps hold the microphone, which needs no extra permission. Turn it
+off with **Detect Meetings** in the menu. Tip: set Notetaker's notification style to **Alerts** in System
+Settings › Notifications so the prompt stays on screen until you answer.
+
 Click the waveform icon → **Start Recording** → **Stop & Summarize with Claude** (or **Locally**). The note
 opens when it's ready. Notes go to `~/Notes/meetings/<date time> – <title>/notes.md`.
 
@@ -42,6 +49,13 @@ Config (`~/.config/notetaker/`):
 - `context.md`: your team, projects and people; passed to the summarizer
 
 Re-process a session: `uv run --project pipeline notetaker process "<session dir>" [--mode local] [--language Latvian] [--retranscribe]`
+
+## Stable signing (keep permissions across rebuilds)
+
+Ad-hoc signed builds look like a new app to macOS each time, so it asks for Microphone / Screen & System
+Audio permission again. Fix it once: open **Keychain Access › Certificate Assistant › Create a
+Certificate…**, set Name `Notetaker Local Signing`, Identity Type **Self Signed Root**, Certificate Type
+**Code Signing**, and click Create. `scripts/build-app.sh` picks it up automatically.
 
 ## Claude Code / Cowork plugin
 
