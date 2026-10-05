@@ -115,13 +115,13 @@ struct FloatingView: View {
     }
 }
 
+/// PhaseAnimator instead of @State: @State is a macro in the macOS 26+ SDK, and Command Line Tools
+/// don't ship the SwiftUIMacros plugin (only Xcode does).
 struct PulsingDot: View {
-    @State private var on = false
     var body: some View {
-        Circle().fill(.red).frame(width: 10, height: 10)
-            .opacity(on ? 0.35 : 1)
-            .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: on)
-            .onAppear { on = true }
+        PhaseAnimator([1.0, 0.35]) { opacity in
+            Circle().fill(.red).frame(width: 10, height: 10).opacity(opacity)
+        } animation: { _ in .easeInOut(duration: 0.9) }
     }
 }
 
