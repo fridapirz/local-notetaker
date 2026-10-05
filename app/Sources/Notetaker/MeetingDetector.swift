@@ -8,12 +8,16 @@ import CoreAudio
 final class MeetingDetector {
     var onMeetingStarted: ((String) -> Void)?
     var onMeetingEnded: (() -> Void)?
+    /// The call moved to another app (e.g. Teams → Slack huddle) without the mic going quiet.
+    var onAppChanged: ((String) -> Void)?
 
     private(set) var inCall = false
     private(set) var currentApp: String?
     private var activeSince: Date?
     private var lastSeen: Date?
     private var timer: Timer?
+    /// When each call app started holding the mic; the newest one is "the" meeting app.
+    private var firstSeen: [String: Date] = [:]
 
     static let startAfter: TimeInterval = 8   // ignore brief mic use (dictation, Siri, a quick voice note)
     static let endAfter: TimeInterval = 60    // tolerate apps that release the mic while muted
@@ -42,13 +46,18 @@ final class MeetingDetector {
         inCall = false
         currentApp = nil
         activeSince = nil
+        firstSeen = [:]
     }
 
     private func tick() {
         let now = Date()
-        let app = AudioProcesses.inputBundleIDs().lazy.compactMap(Self.callAppName).first
+        let present = Set(AudioProcesses.inputBundleIDs().compactMap(Self.callAppName))
+        firstSeen = firstSeen.filter { present.contains($0.key) }
+        for name in present where firstSeen[name] == nil { firstSeen[name] = now }
+        let app = firstSeen.max { $0.value < $1.value }?.key
         if let app {
             lastSeen = now
+            if inCall, app != currentApp { onAppChanged?(app) }
             currentApp = app
             if activeSince == nil { activeSince = now }
             if !inCall, let since = activeSince, now.timeIntervalSince(since) >= Self.startAfter {

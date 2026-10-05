@@ -63,6 +63,7 @@ final class AppState: ObservableObject {
         Notifier.shared.setup()
         detector.onMeetingStarted = { [weak self] app in self?.meetingStarted(app) }
         detector.onMeetingEnded = { [weak self] in self?.meetingEnded() }
+        detector.onAppChanged = { [weak self] app in self?.meetingAppChanged(app) }
         if autoDetect { detector.start() }
     }
 
@@ -73,6 +74,14 @@ final class AppState: ObservableObject {
         switch phase {
         case .recording: recordingSawCall = true
         case .idle, .failed, .processing: break  // the floating prompt appears via refreshPanel()
+        }
+    }
+
+    private func meetingAppChanged(_ app: String) {
+        detectedApp = app
+        switch phase {
+        case .recording: recordingSawCall = true  // keep recording; the pill shows the new app
+        default: promptDismissed = false          // new call in another app: offer again
         }
     }
 
