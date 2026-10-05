@@ -24,6 +24,9 @@ DEFAULT_CONFIG = {
     "notes_dir": "~/Notes/meetings",
     "summary_language": "English",
     "vocabulary": [],
+    # When the Claude summary fails (not signed in, offline): "local" = summarize on this Mac instead;
+    # "desktop" = queue it for the Claude Desktop scheduled task "Meeting notes".
+    "claude_fallback": "local",
 }
 
 
@@ -160,7 +163,17 @@ def process(session: Path, mode: str, language: str | None) -> tuple[Path, bool]
         print(f"summary failed: {e}", file=sys.stderr)
         if mode != "claude":
             raise RuntimeError(f"Local summary failed: {e}") from e
-        # CLI not logged in / unavailable: queue for the Claude Desktop scheduled task.
+        if cfg.get("claude_fallback", "local") == "local":
+            status("Claude unavailable — summarizing on this Mac…")
+            try:
+                notes = summarize_local(prompt)
+            except Exception as e2:
+                raise RuntimeError(f"Claude failed ({e}) and local summary failed ({e2})") from e2
+            path = write_notes(session, notes, "local", segments, rename=True)
+            status(f"Done in {int(time.time() - t0)}s")
+            notify("Meeting notes ready", path.parent.name + " (summarized on this Mac)")
+            return path, True
+        # Queue for the Claude Desktop scheduled task.
         (session / "summary_request.md").write_text(prompt)
         notes = (f"# Meeting\n\n{PENDING_MARKER}\n> Summary pending — Claude Desktop will add it shortly "
                  "(scheduled task \"Meeting notes\"). The transcript is below.")
@@ -239,9 +252,34 @@ def main() -> None:
     ht = sub.add_parser("html", help="(re)render notes.html from notes.md, e.g. after editing notes.md")
     ht.add_argument("session", nargs="?", help="session folder; omit with --all")
     ht.add_argument("--all", action="store_true")
+    sub.add_parser("warmup", help="set up the speech engine: download the Whisper model (~3 GB)")
+    sub.add_parser("doctor", help="check that everything needed is in place (JSON)")
     sub.add_parser("config", help="print config paths")
     args = p.parse_args()
 
+    if args.cmd == "warmup":
+        from huggingface_hub import snapshot_download
+
+        from .transcribe import WHISPER_MODEL
+        print("STATUS: Downloading speech model (~3 GB, once)…", flush=True)
+        print(f"DONE: {snapshot_download(WHISPER_MODEL)}", flush=True)
+        return
+    if args.cmd == "doctor":
+        from .summarize import claude_cli
+        cli = claude_cli()
+        logged_in = False
+        if cli:
+            r = subprocess.run([cli, "auth", "status"], capture_output=True, text=True, timeout=30)
+            logged_in = '"loggedIn": true' in r.stdout
+        hub = Path(os.path.expanduser("~/.cache/huggingface/hub/models--mlx-community--whisper-large-v3-mlx"))
+        print(json.dumps({
+            "speech_model": any(hub.glob("snapshots/*/*.safetensors")) or any(hub.glob("snapshots/*/*.npz")),
+            "claude_cli": cli,
+            "claude_logged_in": logged_in,
+            "claude_fallback": load_config().get("claude_fallback", "local"),
+            "notes_dir": os.path.expanduser(load_config()["notes_dir"]),
+        }, indent=2))
+        return
     if args.cmd == "config":
         cfg = load_config()
         print(f"config:  {CONFIG_DIR / 'config.json'}\ncontext: {CONFIG_DIR / 'context.md'}\nnotes:   {cfg['notes_dir']}")

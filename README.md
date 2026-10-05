@@ -16,7 +16,16 @@ you get a summary in Markdown.
 - **Follow-ups:** the `/meeting` skill in Claude Code / Cowork answers questions across past meetings and
   drafts Jira tickets, Confluence pages and Slack recaps.
 
-## Install
+## Install with Claude (easiest)
+
+Open the **Claude desktop app → Code**, and paste:
+
+> Install Notetaker from https://github.com/fridapirz/local-notetaker (follow INSTALL.md)
+
+Claude downloads the app, installs the `/meeting` plugin, sets up Claude summaries and the speech engine,
+and walks you through the two permission clicks. Steps it follows: [INSTALL.md](INSTALL.md).
+
+## Install from source
 
 ```bash
 scripts/build-app.sh            # builds + installs ~/Applications/Notetaker.app

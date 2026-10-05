@@ -44,10 +44,26 @@ def build_prompt(transcript: str, language: str, context: str) -> str:
     return PROMPT.format(transcript=transcript, language=language, context=ctx)
 
 
+def desktop_bundled_cli() -> str | None:
+    """Newest CLI shipped inside Claude Desktop: claude-code/<ver>/[<hash>/]claude.app/Contents/MacOS/claude."""
+    import glob
+
+    root = os.path.expanduser("~/Library/Application Support/Claude/claude-code")
+    hits = glob.glob(f"{root}/*/claude.app/Contents/MacOS/claude") + glob.glob(f"{root}/*/*/claude.app/Contents/MacOS/claude")
+
+    def version(path: str) -> tuple:
+        v = os.path.relpath(path, root).split(os.sep)[0]
+        return tuple(int(x) for x in v.split(".") if x.isdigit())
+
+    return max(hits, key=version) if hits else None
+
+
 def claude_cli() -> str | None:
-    for candidate in (shutil.which("claude"), "/usr/local/bin/claude", os.path.expanduser("~/.local/bin/claude"),
-                      os.path.expanduser("~/.claude/local/claude"), "/opt/homebrew/bin/claude"):
-        if candidate and os.path.exists(candidate):
+    """Native/Homebrew install first, then Claude Desktop's bundled CLI, then npm (needs Node, so last)."""
+    for candidate in (os.environ.get("NOTETAKER_CLAUDE"), os.path.expanduser("~/.local/bin/claude"),
+                      "/opt/homebrew/bin/claude", os.path.expanduser("~/.claude/local/claude"),
+                      desktop_bundled_cli(), shutil.which("claude"), "/usr/local/bin/claude"):
+        if candidate and os.access(candidate, os.X_OK):
             return candidate
     return None
 
