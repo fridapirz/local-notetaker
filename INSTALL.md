@@ -24,8 +24,13 @@ curl -fsSL -o "$TMP/Notetaker.zip" https://github.com/fridapirz/local-notetaker/
 osascript -e 'quit app "Notetaker"' 2>/dev/null; sleep 1
 rm -rf /Applications/Notetaker.app && ditto -x -k "$TMP/Notetaker.zip" /Applications/
 rm -rf "$TMP"
-xattr -dr com.apple.quarantine /Applications/Notetaker.app 2>/dev/null || true
 ```
+
+Never strip or change macOS security attributes, such as `xattr … com.apple.quarantine` or
+`spctl`. A file downloaded with `curl` isn't marked as quarantined in the first place. Company security
+tools (EDR, for example Cortex XDR) treat attempts to bypass Gatekeeper as malicious and block them. If macOS
+still refuses to open the app, tell the person to use **System Settings › Privacy & Security › Open
+Anyway**, or to ask their IT help desk.
 
 If an older copy exists at `~/Applications/Notetaker.app`, ask before deleting it. Two copies would show
 two menu bar icons.
