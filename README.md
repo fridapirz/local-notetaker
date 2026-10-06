@@ -36,7 +36,14 @@ scripts/build-app.sh            # builds + installs ~/Applications/Notetaker.app
 open ~/Applications/Notetaker.app
 ```
 
-Requirements: macOS 15+, Xcode Command Line Tools, [uv](https://docs.astral.sh/uv/), and a logged-in
+**Manual install (without Claude):** download `Notetaker.zip` from the
+[latest release](https://github.com/fridapirz/local-notetaker/releases/latest), unzip it, and drag
+**Notetaker** to Applications. The first time you open it, macOS says it "can't be opened" because the app
+isn't notarized by Apple. Go to **System Settings › Privacy & Security**, scroll down, click **Open
+Anyway**, and confirm with your password. You only need to do this once. Installing through Claude avoids
+the warning altogether.
+
+Build requirements: macOS 15+, Xcode Command Line Tools, [uv](https://docs.astral.sh/uv/), and a logged-in
 `claude` CLI for Claude summaries. The first run downloads about 3 GB for Whisper; the first local summary
 downloads about 8 GB.
 

@@ -13,8 +13,8 @@ Follow the canonical guide in the repository: `INSTALL.md` in `fridapirz/local-n
 Updating is step 2 of that guide (download the latest release and replace the app). Permissions survive
 updates because releases are signed with the same certificate.
 
-**Optional: Claude Desktop scheduled task** (only if the user can't or won't sign in to the `claude` CLI but
-still wants Claude, not on-device, summaries). Set `"claude_fallback": "desktop"` in
+**Optional: Claude Desktop scheduled task** (the default when the `claude` CLI isn't signed in, because it
+needs no Terminal). Set `"claude_fallback": "desktop"` in
 `~/.config/notetaker/config.json`, then create a scheduled task: id `meeting-notes-summarize`, title
 "Meeting notes", cron `*/15 9-19 * * 1-5`, with the prompt below, where `<N>` is
 `/Applications/Notetaker.app/Contents/Resources/notetaker`. Run it once right away and tell the user to click

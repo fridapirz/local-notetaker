@@ -15,23 +15,22 @@ Repository: `fridapirz/local-notetaker`. App command used below: `N=/Application
 
 ## 2. Install the app from the latest release
 
+Download it with `curl`, not the browser. macOS blocks browser downloads of apps that Apple hasn't
+notarized, but files fetched this way open normally.
+
 ```bash
 TMP=$(mktemp -d)
-# gh works for private repos if the person is signed in; otherwise use the public download URL.
-gh release download --repo fridapirz/local-notetaker --pattern 'Notetaker.dmg' --dir "$TMP" 2>/dev/null \
-  || curl -fL -o "$TMP/Notetaker.dmg" https://github.com/fridapirz/local-notetaker/releases/latest/download/Notetaker.dmg
+curl -fsSL -o "$TMP/Notetaker.zip" https://github.com/fridapirz/local-notetaker/releases/latest/download/Notetaker.zip
 osascript -e 'quit app "Notetaker"' 2>/dev/null; sleep 1
-MNT=$(hdiutil attach -nobrowse -readonly "$TMP/Notetaker.dmg" | tail -1 | awk -F'\t' '{print $NF}')
-rm -rf /Applications/Notetaker.app && ditto "$MNT/Notetaker.app" /Applications/Notetaker.app
-hdiutil detach "$MNT" -quiet; rm -rf "$TMP"
+rm -rf /Applications/Notetaker.app && ditto -x -k "$TMP/Notetaker.zip" /Applications/
+rm -rf "$TMP"
 xattr -dr com.apple.quarantine /Applications/Notetaker.app 2>/dev/null || true
 ```
 
 If an older copy exists at `~/Applications/Notetaker.app`, ask before deleting it. Two copies would show
 two menu bar icons.
 
-If both downloads fail, the repo is probably private and the person has no access. Ask them to get invited
-to the repo, or to send you the `Notetaker.dmg` file.
+If the download fails, check the network or VPN and retry.
 
 ## 3. Speech engine (~3 GB, runs in the background)
 
@@ -52,15 +51,21 @@ Find the `claude` CLI: `command -v claude`. Failing that, use the newest one bun
 If the repo isn't reachable, use a `notetaker.plugin` file the person has, or skip this step and say so.
 Tell them to quit and reopen the Claude app (⌘Q) later so `/meeting` appears.
 
-## 5. Claude summaries
+## 5. Claude summaries (no Terminal needed)
 
 Run `"$N" doctor`.
-- If `claude_logged_in` is `true`, summaries already work. Skip to step 6.
-- Otherwise, recommend a one-time sign-in so summaries happen right after each meeting. Write a script
-  `~/Desktop/Sign in to Claude.command` containing `"$CLAUDE" auth login`, `chmod +x` it, `open` it, and
-  tell the person to sign in in the browser window that opens. Afterwards check `"$N" doctor` again.
-- If they'd rather not sign in, nothing breaks. Notes are then summarized on the Mac itself (it downloads
-  an extra ~8 GB model the first time).
+- If `claude_logged_in` is `true`, summaries already happen right after each meeting. Skip to step 6.
+- Otherwise, if you have the scheduled-tasks tool (Claude Desktop), set up the **"Meeting notes"**
+  scheduled task. It uses the Claude app's own sign-in, so the person never opens Terminal:
+  1. Set `"claude_fallback": "desktop"` in `~/.config/notetaker/config.json`. Create the file with `"$N" config`
+     first if it doesn't exist.
+  2. Create the task exactly as described in the plugin's `notetaker-setup` skill ("Optional: Claude
+     Desktop scheduled task"), with `<N>` = `/Applications/Notetaker.app/Contents/Resources/notetaker`.
+  3. Run it once right away. Tell the person to open the **Meeting notes** run in the sidebar and click
+     **Always allow** on its first command, which is a single click. Summaries then arrive within about
+     15 minutes of a meeting (weekdays 9–19, while the Claude app is open).
+- Without either, nothing breaks. Notes are summarized on the Mac itself, which downloads an extra ~8 GB
+  model the first time.
 
 ## 6. Start the app and grant permissions (the person does this)
 
