@@ -117,7 +117,7 @@ enum Pipeline {
         serverReady = false
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: uv)
-        proc.arguments = ["run", "--quiet", "--project", project.path, "--python", "3.12", "notetaker", "serve",
+        proc.arguments = ["run", "--quiet", "--frozen", "--project", project.path, "--python", "3.12", "notetaker", "serve",
                           "--app-pid", String(ProcessInfo.processInfo.processIdentifier)]
         proc.environment = environment()
         proc.standardOutput = FileHandle.nullDevice

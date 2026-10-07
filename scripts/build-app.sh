@@ -25,7 +25,7 @@ if [ -f "$DUP" ] && grep -q "module SwiftBridging" "$(dirname "$SWIFTC")/../incl
 YAML
   EXTRA=(-vfsoverlay build/overlay.yaml -Xcc -ivfsoverlay -Xcc build/overlay.yaml)
 fi
-"$SWIFTC" "${EXTRA[@]}" -O -parse-as-library -swift-version 5 -target arm64-apple-macos15.0 -sdk "$SDK" \
+"$SWIFTC" ${EXTRA[@]+"${EXTRA[@]}"} -O -parse-as-library -swift-version 5 -target arm64-apple-macos15.0 -sdk "$SDK" \
   app/Sources/Notetaker/*.swift -o build/Notetaker
 
 APP="$ROOT/build/Notetaker.app"
