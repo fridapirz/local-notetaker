@@ -6,6 +6,8 @@ pages work opened as files (read-only) and served by `notetaker serve` (action i
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import html
 import json
 import re
@@ -183,6 +185,8 @@ function setView(v) {
   counts();
 }
 function counts() {
+  const mo = $("#meeting-open");
+  if (mo) mo.textContent = $$(".in-meeting .ai:not(.done)").length;
   if (!box) return;
   const mineOnly = box.classList.contains("only-mine");
   const shown = $$("#ai-open .ai", box).filter(el => !mineOnly || el.classList.contains("mine"));
@@ -247,7 +251,9 @@ q?.addEventListener("input", () => {
 // Keyboard: / search, j/k next/previous meeting, h action items
 document.addEventListener("keydown", e => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
-  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName);
+  const el = document.activeElement;
+  const typing = el?.isContentEditable || /^(TEXTAREA|SELECT)$/.test(el?.tagName) ||
+    (el?.tagName === "INPUT" && !["checkbox", "radio", "button", "submit"].includes(el.type));
   if (e.key === "Escape" && typing) { document.activeElement.blur(); return; }
   if (typing) return;
   if (e.key === "/") { e.preventDefault(); q?.focus(); return; }
@@ -260,6 +266,11 @@ document.addEventListener("keydown", e => {
 });
 $(".mt[aria-current=page]")?.scrollIntoView({ block: "nearest" });
 """
+
+# The only script a page may run (served pages send a CSP that allows exactly this hash).
+JS_HASH = "sha256-" + base64.b64encode(hashlib.sha256(JS.encode()).digest()).decode()
+CSP = ("default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; "
+       f"script-src '{JS_HASH}'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 
 
 # ---------- helpers ----------
@@ -305,19 +316,12 @@ def inline(text: str) -> str:
     return re.sub(r"\b([A-Z][A-Z0-9]+-\d+)\b", r'<span class="ref">\1</span>', out)
 
 
-def gist(notes: Path, limit: int = 180) -> str:
-    """First sentence or two of the summary."""
-    _, summary_md = parse_notes(notes.read_text())
-    m = re.search(r"^## Summary\s*\n+(.+?)(?:\n\n|\n#|$)", summary_md, re.S | re.M)
-    text = " ".join(m.group(1).split()) if m else ""
-    return text if len(text) <= limit else text[:limit].rsplit(" ", 1)[0] + "…"
-
-
 def site(notes_dir: Path) -> dict:
     """Everything the shell needs: meetings (newest first), action items, server port."""
     from .cli import all_actions, load_config, sessions
     cfg = load_config()
-    return {"meetings": sessions(notes_dir), "items": all_actions(notes_dir, cfg["my_names"]),
+    meetings = sessions(notes_dir)
+    return {"meetings": meetings, "items": all_actions(notes_dir, cfg["my_names"], meetings),
             "port": cfg["server_port"]}
 
 
@@ -409,6 +413,14 @@ def file_hint(port: int) -> str:
 
 
 def render_index(notes_dir: Path, ctx: dict | None = None) -> Path:
+    out = notes_dir / "index.html"
+    tmp = out.with_suffix(".tmp")
+    tmp.write_text(index_page(notes_dir, ctx))
+    tmp.replace(out)  # atomic: the server and the pipeline both rebuild it
+    return out
+
+
+def index_page(notes_dir: Path, ctx: dict | None = None) -> str:
     """index.html: every action item across meetings in one list, recent done ones, then the archive."""
     from .actions import archived
 
@@ -436,11 +448,7 @@ def render_index(notes_dir: Path, ctx: dict | None = None) -> Path:
 <p class="empty-note hidden" id="ai-empty">Nothing open. Done items move to the archive after 7 days.</p>
 {archive}
 </div>"""
-    out = notes_dir / "index.html"
-    tmp = out.with_suffix(".tmp")
-    tmp.write_text(page("Action items · Notetaker", sidebar(ctx, "", None), body))
-    tmp.replace(out)  # atomic: the server and the pipeline both rebuild it
-    return out
+    return page("Action items · Notetaker", sidebar(ctx, "", None), body)
 
 
 # ---------- meeting page ----------
@@ -477,6 +485,12 @@ def talk_share(segments: list[dict]) -> str:
             f'<span class="me">Me {pct}%</span><span class="them">Them {100 - pct}%</span></span>')
 
 
+def safe_md(md: str) -> str:
+    """Summaries are LLM output from what people said: render no raw HTML from them (pages are served
+    next to an API). Markdown itself still works; `>` is left alone so blockquotes survive."""
+    return md.replace("&", "&amp;").replace("<", "&lt;")
+
+
 def nest_lists(md: str) -> str:
     """Summaries indent sub-bullets by 2 spaces; Python-Markdown needs 4, or it flattens them."""
     if not re.search(r"^ {2}[-*] ", md, re.M):
@@ -493,15 +507,20 @@ def sections(summary_md: str) -> list[tuple[str, str]]:
 
 
 def render(session: Path, ctx: dict | None = None) -> Path:
-    from .actions import parse
+    out = session / "notes.html"
+    out.write_text(meeting_page(session, ctx))
+    return out
+
+
+def meeting_page(session: Path, ctx: dict | None = None) -> str:
+    from .actions import ITEM
 
     ctx = ctx or site(session.parent)
     md_text = (session / "notes.md").read_text()
     meta, summary_md = parse_notes(md_text)
     summary_md = re.sub(r"^#\s+.+\n?", "", summary_md, count=1).strip()  # title comes from the frontmatter
     pending = "notetaker:pending-summary" in summary_md
-    from .cli import load_config
-    items = {i["id"]: i for i in parse(session / "notes.md", load_config()["my_names"])}
+    items = [i for i in ctx["items"] if i["folder"] == session.name]
 
     blocks = []
     if pending:
@@ -510,12 +529,16 @@ def render(session: Path, ctx: dict | None = None) -> Path:
     else:
         for heading, body in sections(summary_md):
             if heading.lower() == "action items" and items:
-                open_n = sum(1 for i in items.values() if not i["done"])
-                rows = "\n".join(action_row(i, None) for i in items.values())
-                blocks.append(f'<h2>Action items<span class="c">{open_n} open · {len(items)}</span></h2>'
-                              f'{file_hint(ctx["port"])}<div class="in-meeting">{rows}</div>')
+                open_n = sum(1 for i in items if not i["done"])
+                rows = "\n".join(action_row(i, None) for i in items)
+                # Whatever isn't a checkbox line (sub-bullets, plain lines, notes) still shows, below the rows.
+                rest = "\n".join(l.lstrip() if re.match(r"^\s+[-*] ", l) else l
+                                 for l in body.splitlines() if not ITEM.match(l)).strip()
+                extra = markdown.markdown(safe_md(rest), extensions=["sane_lists"]) if rest else ""
+                blocks.append(f'<h2>Action items<span class="c"><span id="meeting-open">{open_n}</span> open · '
+                              f'{len(items)}</span></h2>{file_hint(ctx["port"])}<div class="in-meeting">{rows}</div>{extra}')
                 continue
-            content = markdown.markdown(nest_lists(body), extensions=["sane_lists"])
+            content = markdown.markdown(safe_md(nest_lists(body)), extensions=["sane_lists"])
             content = re.sub(r"\b([A-Z][A-Z0-9]+-\d+)\b(?![^<]*>)", r'<span class="ref">\1</span>', content)
             if heading:
                 count = len(re.findall(r"^[-*] ", body, re.M))
@@ -549,6 +572,4 @@ def render(session: Path, ctx: dict | None = None) -> Path:
                   f"{transcript_html(segments)}</aside>") if segments else ""
     body = f"""<div class="head"><h1>{html.escape(title)}</h1><div class="meta">{"".join(bits)}</div></div>
 <div class="cols"><article class="doc">{"".join(blocks)}</article>{transcript}</div>"""
-    out = session / "notes.html"
-    out.write_text(page(title, sidebar(ctx, "../", session.name), body))
-    return out
+    return page(title, sidebar(ctx, "../", session.name), body)

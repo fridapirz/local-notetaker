@@ -141,13 +141,17 @@ def write_notes(session: Path, notes: str, summary_by: str, segments: list[dict]
         session = target
     from .html import render
     render(session)  # notes.html next to notes.md: what the app opens for humans
-    write_index(session.parent)
+    try:
+        write_index(session.parent)
+    except Exception as e:  # another note failing to render must not fail this meeting
+        print(f"index not rebuilt: {e}", file=sys.stderr)
     return session / "notes.md"
 
 
-def all_actions(notes_dir: Path, my_names: list[str]) -> list[dict]:
+def all_actions(notes_dir: Path, my_names: list[str], meetings: list[dict] | None = None) -> list[dict]:
     from .actions import parse
-    return [i for s in sessions(notes_dir) if s["notes"] for i in parse(Path(s["notes"]), my_names)]
+    meetings = sessions(notes_dir) if meetings is None else meetings
+    return [i for s in meetings if s["notes"] for i in parse(Path(s["notes"]), my_names)]
 
 
 def write_index(notes_dir: Path) -> Path:

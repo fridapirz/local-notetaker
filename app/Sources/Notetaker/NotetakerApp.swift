@@ -273,8 +273,7 @@ struct MenuContent: View {
 
         Divider()
         Button("Meetings & Action Items") {
-            Pipeline.startServer()  // no-op if running; restarts it if it died
-            NSWorkspace.shared.open(Pipeline.meetingsPage)
+            Task { await Pipeline.openMeetingsPage() }
         }
         if !state.recent.isEmpty {
             Menu("Recent Notes") {
