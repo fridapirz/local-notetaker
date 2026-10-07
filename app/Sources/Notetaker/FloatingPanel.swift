@@ -8,10 +8,8 @@ import SwiftUI
 @MainActor
 final class FloatingPanel {
     private let state: AppState
-    private var panel: NSPanel?
+    private var panel: CardPanel?
     private var hosting: NSHostingView<FloatingView>?
-    /// The last frame place() set, so its move notification isn't mistaken for a drag.
-    private var placedFrame: NSRect?
     /// Where the card was dragged to during the current meeting; nil means the corner.
     private var draggedFrame: NSRect?
 
@@ -20,9 +18,7 @@ final class FloatingPanel {
     func update(visible: Bool) {
         guard visible else {
             panel?.orderOut(nil)
-            // Hidden while not recording means the meeting's done (or declined): next one starts in the corner.
-            // Hiding the pill with × mid-recording keeps the spot for "Making notes…".
-            if case .recording = state.phase {} else { draggedFrame = nil }
+            panel?.isDragging = false  // a hidden card gets no mouse-up
             return
         }
         if panel == nil { create() }
@@ -31,8 +27,11 @@ final class FloatingPanel {
         panel?.orderFrontRegardless()
     }
 
+    /// AppState calls this when a meeting is over (notes done, recording discarded, prompt declined or gone).
+    func resetPosition() { draggedFrame = nil }
+
     private func create() {
-        let p = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 360, height: 80),
+        let p = CardPanel(contentRect: NSRect(x: 0, y: 0, width: 360, height: 80),
                         styleMask: [.nonactivatingPanel, .borderless], backing: .buffered, defer: false)
         p.level = .statusBar
         p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
@@ -43,42 +42,47 @@ final class FloatingPanel {
         p.hidesOnDeactivate = false
         // Keep the card out of screen shares / recordings (Teams, Zoom, screenshots).
         p.sharingType = .none
-        NotificationCenter.default.addObserver(forName: NSWindow.didMoveNotification, object: p, queue: .main) {
-            [weak self] _ in MainActor.assumeIsolated { self?.panelMoved() }
-        }
+        p.onDragEnd = { [weak self] in self?.dragEnded() }
         let view = NSHostingView(rootView: FloatingView(state: state))
         p.contentView = view
         hosting = view
         panel = p
     }
 
-    private func panelMoved() {
-        guard let panel, panel.frame != placedFrame else { return }
+    private func dragEnded() {
+        guard let panel else { return }
         draggedFrame = panel.frame
+        place()  // pull it back on screen if it was dropped past an edge, and apply any resize skipped mid-drag
     }
 
     private func place() {
-        guard let panel, let hosting else { return }
+        guard let panel, let hosting, !panel.isDragging else { return }
         let size = hosting.fittingSize
+        let draggedScreen = draggedFrame.flatMap { f in
+            NSScreen.screens.first { $0.frame.contains(NSPoint(x: f.midX, y: f.midY)) }
+        }
+        guard let screen = draggedScreen ?? NSScreen.main ?? NSScreen.screens.first else { return }
+        let area = screen.visibleFrame
         var frame: NSRect
         if let saved = draggedFrame {
             // The card's width changes between prompt, pill and "Making notes…": keep its top edge and the
             // side nearer the screen edge where it was left, and keep it on a connected screen.
-            let center = NSPoint(x: saved.midX, y: saved.midY)
-            let screen = NSScreen.screens.first { $0.frame.contains(center) } ?? NSScreen.main ?? NSScreen.screens[0]
-            let area = screen.visibleFrame
             frame = NSRect(x: saved.midX < area.midX ? saved.minX : saved.maxX - size.width,
                            y: saved.maxY - size.height, width: size.width, height: size.height)
             frame.origin.x = min(max(frame.minX, area.minX), area.maxX - size.width)
             frame.origin.y = min(max(frame.minY, area.minY), area.maxY - size.height)
         } else {
-            let area = (NSScreen.main ?? NSScreen.screens[0]).visibleFrame
             frame = NSRect(x: area.maxX - size.width - 14, y: area.maxY - size.height - 10,
                            width: size.width, height: size.height)
         }
-        placedFrame = frame
         panel.setFrame(frame, display: true)
     }
+}
+
+final class CardPanel: NSPanel {
+    /// True while CardBackground is dragging the card; place() leaves it alone meanwhile.
+    var isDragging = false
+    var onDragEnd: (() -> Void)?
 }
 
 struct FloatingView: View {
@@ -111,7 +115,7 @@ struct FloatingView: View {
                 Text("Take notes for this meeting?").font(.system(size: 12)).foregroundStyle(.secondary)
             }
             Spacer(minLength: 12)
-            Button("Not now") { state.promptDismissed = true }
+            Button("Not now") { state.declinePrompt() }
                 .buttonStyle(.bordered).controlSize(.large)
             Button("Start notes") { state.start() }
                 .buttonStyle(.borderedProminent).tint(Color(red: 0.36, green: 0.30, blue: 0.94)).controlSize(.large)
@@ -170,13 +174,19 @@ final class CardBackground: NSVisualEffectView {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard let window, let dragStart else { return }
+        guard let panel = window as? CardPanel, let dragStart else { return }
+        panel.isDragging = true
         let mouse = NSEvent.mouseLocation  // screen coordinates, so moving the window doesn't skew them
-        window.setFrameOrigin(NSPoint(x: dragStart.origin.x + mouse.x - dragStart.mouse.x,
-                                      y: dragStart.origin.y + mouse.y - dragStart.mouse.y))
+        panel.setFrameOrigin(NSPoint(x: dragStart.origin.x + mouse.x - dragStart.mouse.x,
+                                     y: dragStart.origin.y + mouse.y - dragStart.mouse.y))
     }
 
-    override func mouseUp(with event: NSEvent) { dragStart = nil }
+    override func mouseUp(with event: NSEvent) {
+        dragStart = nil
+        guard let panel = window as? CardPanel, panel.isDragging else { return }  // a plain click isn't a move
+        panel.isDragging = false
+        panel.onDragEnd?()
+    }
 }
 
 struct VisualEffect: NSViewRepresentable {
