@@ -24,6 +24,14 @@ struct NotetakerApp: App {
 /// URL control so Claude, Shortcuts or Raycast can drive recording:
 ///   open notetaker://start · notetaker://stop?mode=claude|local · notetaker://discard
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        Pipeline.startServer()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        Pipeline.stopServer()
+    }
+
     func application(_ application: NSApplication, open urls: [URL]) {
         Task { @MainActor in
             for url in urls { AppState.shared.handle(url) }
@@ -264,6 +272,9 @@ struct MenuContent: View {
         }
 
         Divider()
+        Button("Meetings & Action Items") {
+            Task { await Pipeline.openMeetingsPage() }
+        }
         if !state.recent.isEmpty {
             Menu("Recent Notes") {
                 ForEach(state.recent, id: \.self) { url in

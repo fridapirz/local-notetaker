@@ -38,6 +38,16 @@ everything that touches the archive. **Never write shell loops or `ls` parsing o
 - `notetaker finish "<folder>" --summary-stdin <<'NOTES' … NOTES`: insert a summary you wrote. Also accepts
   `--summary-file "<file>"`.
 - `notetaker html "<folder>"` / `notetaker html --all`: re-render `notes.html` after editing `notes.md`
+- `notetaker index`: rebuild `index.html` in the notes folder: action items across all meetings, then every
+  meeting linking to its `notes.html`. It refreshes on its own whenever notes are written.
+- To show the user their meetings and action items, run `open "http://127.0.0.1:47821/"` (`server_port` in
+  config.json). The menu bar app serves it, and ticking items works only there. If the app isn't running,
+  fall back to `open "<notes_dir>/index.html"` (read-only).
+- `notetaker actions [--mine] [--all]`: action items as JSON lines (`id`, `folder`, `owner`, `task`, `mine`,
+  `done`, `done_on`), open ones unless `--all`. Use it for "what's still open?".
+- `notetaker done "<folder>" <id> [--undo]`: tick an item. It rewrites the line in `notes.md` as
+  `- [x] … ✅ YYYY-MM-DD`; done items move to the page's archive after 7 days. Only tick items when the user
+  says they're done.
 - To show the user a meeting, run `open "<folder>/notes.html"`. It opens a formatted page in their browser.
   Don't open the `.md` file.
 

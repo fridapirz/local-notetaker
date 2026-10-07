@@ -27,6 +27,8 @@ DEFAULT_CONFIG = {
     # When the Claude summary fails (not signed in, offline): "local" = summarize on this Mac instead;
     # "desktop" = queue it for the Claude Desktop scheduled task "Meeting notes".
     "claude_fallback": "local",
+    "my_names": ["Me"],  # action item owners that count as "mine" on the meetings page
+    "server_port": 47821,  # notetaker serve: the meetings page with tickable action items
 }
 
 
@@ -141,7 +143,31 @@ def write_notes(session: Path, notes: str, summary_by: str, segments: list[dict]
         session = target
     from .html import render
     render(session)  # notes.html next to notes.md: what the app opens for humans
+    try:
+        write_index(session.parent)
+    except Exception as e:  # another note failing to render must not fail this meeting
+        print(f"index not rebuilt: {e}", file=sys.stderr)
     return session / "notes.md"
+
+
+def all_actions(notes_dir: Path, my_names: list[str], meetings: list[dict] | None = None) -> list[dict]:
+    from .actions import parse
+    meetings = sessions(notes_dir) if meetings is None else meetings
+    items = []
+    for s in meetings:
+        if not s["notes"]:
+            continue
+        try:
+            items += parse(Path(s["notes"]), my_names)
+        except (OSError, UnicodeDecodeError) as e:  # deleted meanwhile, or saved in another encoding
+            print(f"skipped action items in {Path(s['folder']).name}: {e}", file=sys.stderr)
+    return items
+
+
+def write_index(notes_dir: Path) -> Path:
+    """Refresh index.html (action items + all meetings) in the notes folder."""
+    from .html import render_index
+    return render_index(notes_dir)
 
 
 def process(session: Path, mode: str, language: str | None) -> tuple[Path, bool]:
@@ -208,7 +234,10 @@ def sessions(notes_dir: Path) -> list[dict]:
             continue
         fm = {}
         if notes.exists():
-            head = notes.read_text().split("\n---\n", 1)[0]
+            try:
+                head = notes.read_text(errors="replace").split("\n---\n", 1)[0]
+            except OSError:  # removed while listing
+                continue
             for line in head.splitlines():
                 if ":" in line and not line.startswith("---"):
                     k, v = line.split(":", 1)
@@ -254,6 +283,17 @@ def main() -> None:
     ht.add_argument("--all", action="store_true")
     sub.add_parser("warmup", help="set up the speech engine: download the Whisper model (~3 GB)")
     sub.add_parser("doctor", help="check that everything needed is in place (JSON)")
+    sub.add_parser("index", help="(re)build index.html, the list of all meetings, and print its path")
+    ac = sub.add_parser("actions", help="action items across meetings as JSON lines (open ones unless --all)")
+    ac.add_argument("--all", action="store_true", help="include done items")
+    ac.add_argument("--mine", action="store_true", help="only items owned by my_names")
+    dn = sub.add_parser("done", help="tick (or --undo) an action item by the id from `actions`")
+    dn.add_argument("session")
+    dn.add_argument("id")
+    dn.add_argument("--undo", action="store_true")
+    sv = sub.add_parser("serve", help="serve the meetings page on 127.0.0.1 so action items can be ticked")
+    sv.add_argument("--port", type=int)
+    sv.add_argument("--app-pid", type=int, help="exit when this process (the menu bar app) is gone")
     sub.add_parser("config", help="print config paths")
     args = p.parse_args()
 
@@ -295,11 +335,37 @@ def main() -> None:
         print(done[0]["notes"] if done else "")
         return
     if args.cmd == "html":
-        from .html import render
-        targets = [Path(x["folder"]) for x in sessions(notes_dir) if x["notes"]] if args.all \
+        from .html import render, site
+        ctx = site(notes_dir)
+        targets = [Path(x["folder"]) for x in ctx["meetings"] if x["notes"]] if args.all \
             else [Path(args.session).expanduser()]
         for t in targets:
-            print(render(t))
+            print(render(t, ctx))
+        print(write_index(notes_dir))
+        return
+    if args.cmd == "index":
+        print(write_index(notes_dir))
+        return
+    if args.cmd == "actions":
+        for i in all_actions(notes_dir, load_config()["my_names"]):
+            if (args.all or not i["done"]) and (not args.mine or i["mine"]):
+                print(json.dumps(i, ensure_ascii=False))
+        return
+    if args.cmd == "done":
+        from .actions import set_done
+        from .html import render
+        session = Path(args.session).expanduser().resolve()
+        result = set_done(session, args.id, not args.undo)
+        if not result:
+            print(f"ERROR: no action item {args.id} in {session.name}", flush=True)
+            sys.exit(1)
+        render(session)
+        write_index(notes_dir)
+        print(json.dumps(result))
+        return
+    if args.cmd == "serve":
+        from .serve import serve
+        serve(notes_dir, args.port or load_config()["server_port"], lambda: write_index(notes_dir), args.app_pid)
         return
     if args.cmd == "pending":
         for d in pending(Path(os.path.expanduser(load_config()["notes_dir"]))):
