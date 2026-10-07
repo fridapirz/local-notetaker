@@ -100,6 +100,15 @@ h1 { font-size: 18px; line-height: 1.3; margin: 0; font-weight: 600; letter-spac
 /* meeting body */
 .cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 28px; }
 @media (min-width: 1180px) { .cols { grid-template-columns: minmax(0, 1fr) minmax(340px, 34%); } }
+.cols.tx-closed { grid-template-columns: minmax(0, 1fr); }
+.cols.tx-closed .tx { display: none; }
+.tx-toggle { font: inherit; font-size: 12px; color: var(--ink-2); background: none; border: 1px solid var(--line);
+             border-radius: 6px; padding: 2px 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.tx-toggle .c { font: 11px/1 var(--mono); color: var(--muted); }
+.tx-toggle svg { transition: transform 120ms ease-out; color: var(--muted); }
+.tx-toggle[aria-expanded="true"] { background: var(--accent-tint); color: var(--accent-ink); border-color: transparent; }
+.tx-toggle[aria-expanded="true"] svg { transform: rotate(90deg); }
+@media (hover: hover) { .tx-toggle:hover { background: var(--hover); } }
 .doc { max-width: 820px; }
 h2 { font-size: 12.5px; font-weight: 600; margin: 18px 0 6px; display: flex; align-items: baseline; gap: 8px; }
 h2 .c { font: 11px/1 var(--mono); color: var(--muted); font-weight: 400; }
@@ -125,8 +134,8 @@ h2 .c { font: 11px/1 var(--mono); color: var(--muted); font-weight: 400; }
 .line .lang { font: 10px var(--mono); color: var(--muted); margin-left: 4px; }
 
 /* action items */
-.ai-head, .ai { display: grid; grid-template-columns: 16px 72px minmax(0, 1fr) minmax(0, 220px) 64px; gap: 10px; align-items: baseline; padding: 4px 8px; }
-.only-mine .ai-head, .only-mine .ai { grid-template-columns: 16px minmax(0, 1fr) minmax(0, 220px) 64px; }
+.ai-head, .ai { display: grid; grid-template-columns: 12px 16px 72px minmax(0, 1fr) minmax(0, 220px) 64px; gap: 10px; align-items: baseline; padding: 4px 8px 4px 2px; }
+.only-mine .ai-head, .only-mine .ai { grid-template-columns: 12px 16px minmax(0, 1fr) minmax(0, 220px) 64px; }
 .only-mine .who, .only-mine .h-who { display: none; }
 .ai-head { font-size: 11.5px; color: var(--muted); border-bottom: 1px solid var(--line); padding-top: 12px; }
 .ai-head span:last-child, .ai .when { text-align: right; }
@@ -142,8 +151,19 @@ h2 .c { font: 11px/1 var(--mono); color: var(--muted); font-weight: 400; }
 .ai .when { font: 11px var(--mono); font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
 .ai.done .task { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line); }
 .ai.saving { opacity: .55; }
-.ai .err { grid-column: 2 / -1; color: var(--bad); font-size: 12px; }
-.in-meeting .ai { grid-template-columns: 16px 72px minmax(0, 1fr) 64px; }
+.ai .err { grid-column: 3 / -1; color: var(--bad); font-size: 12px; }
+.in-meeting .ai { grid-template-columns: 12px 16px 72px minmax(0, 1fr) 64px; }
+/* drag to reorder (served pages only, open items only) */
+.grip { align-self: center; width: 12px; height: 18px; padding: 0; border: 0; background: none; color: var(--muted);
+        cursor: grab; touch-action: none; opacity: 0; display: flex; align-items: center; justify-content: center; border-radius: 3px; }
+@media (hover: hover) { .ai:hover .grip { opacity: .8; } }
+@media (hover: none) { .grip { opacity: .5; } }
+.grip:focus-visible { opacity: 1; }
+body:not(.served) .grip, .ai.done .grip { visibility: hidden; }
+.ai.dragging { position: relative; z-index: 3; background: var(--bg); box-shadow: 0 8px 22px rgb(0 0 0 / .16);
+               border-radius: 6px; cursor: grabbing; }
+.ai.dragging .grip { opacity: 1; cursor: grabbing; }
+body.is-dragging { cursor: grabbing; user-select: none; }
 .only-mine .ai:not(.mine) { display: none; }
 .empty-note { color: var(--muted); padding: 10px 8px; margin: 0; }
 details.archive { margin-top: 16px; }
@@ -157,8 +177,8 @@ details.archive summary .c { font: 11px var(--mono); color: var(--muted); font-w
   .main { overflow: visible; }
   .side-foot { display: none; }
   .page { padding: 12px 16px 40px; }
-  .ai-head, .ai, .in-meeting .ai { grid-template-columns: 16px 56px minmax(0, 1fr) 52px; }
-  .only-mine .ai-head, .only-mine .ai { grid-template-columns: 16px minmax(0, 1fr) 52px; }
+  .ai-head, .ai, .in-meeting .ai { grid-template-columns: 12px 16px 56px minmax(0, 1fr) 52px; }
+  .only-mine .ai-head, .only-mine .ai { grid-template-columns: 12px 16px minmax(0, 1fr) 52px; }
   .ai .src, .ai-head .h-src { display: none; }
 }
 @media print { .side { display: none; } .app { display: block; height: auto; } .tx { position: static; max-height: none; } }
@@ -166,6 +186,11 @@ details.archive summary .c { font: 11px var(--mono); color: var(--muted); font-w
 
 ICON_WAVE = ('<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
              'stroke-linecap="round" aria-hidden="true"><path d="M2 12h2M6 8v8M10 4v16M14 7v10M18 10v4M22 12h0"/></svg>')
+ICON_GRIP = ('<svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor" aria-hidden="true">'
+             '<circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/><circle cx="2" cy="7" r="1.2"/>'
+             '<circle cx="6" cy="7" r="1.2"/><circle cx="2" cy="12" r="1.2"/><circle cx="6" cy="12" r="1.2"/></svg>')
+ICON_CHEVRON = ('<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" '
+                'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>')
 ICON_CHECK = ('<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
               'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" '
               'rx="3"/><path d="m8 12 3 3 5-6"/></svg>')
@@ -197,6 +222,20 @@ function counts() {
 views.forEach(b => b.addEventListener("click", () => setView(b.dataset.view)));
 if (views.length) { let v = "mine"; try { v = localStorage.getItem("notetaker.view") || "mine"; } catch (e) {} setView(v); }
 
+document.body.classList.toggle("served", served);
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// Transcript: collapsed by default, remembered per browser
+const txBtn = $(".tx-toggle"), cols = $(".cols");
+function setTranscript(open, remember = true) {
+  if (!txBtn || !cols) return;
+  cols.classList.toggle("tx-closed", !open);
+  txBtn.setAttribute("aria-expanded", String(open));
+  if (remember) { try { localStorage.setItem("notetaker.transcript", open ? "open" : "closed"); } catch (e) {} }
+}
+txBtn?.addEventListener("click", () => setTranscript(txBtn.getAttribute("aria-expanded") !== "true"));
+{ let t = "closed"; try { t = localStorage.getItem("notetaker.transcript") || "closed"; } catch (e) {} setTranscript(t === "open", false); }
+
 // Ticking: only when served by the app
 if (!served) {
   $$(".file-hint").forEach(el => el.classList.remove("hidden"));
@@ -223,6 +262,8 @@ document.addEventListener("change", async e => {
       bump("#nav-open", d);
       bump(`.mt[data-folder="${CSS.escape(row.dataset.folder)}"] .n`, d);
     }
+    const checked = input.checked;
+    setTimeout(() => { if (row.classList.contains("done") === checked) settle(row); }, checked ? 350 : 0);
   } catch (err) {
     input.checked = !input.checked;
     row.insertAdjacentHTML("beforeend", `<span class="err">Couldn't save: ${err.message}</span>`);
@@ -230,6 +271,95 @@ document.addEventListener("change", async e => {
     row.classList.remove("saving");
     counts();
   }
+});
+
+// Order: open items by priority (data-rank), then done ones; FLIP-animated moves
+function flip(list, mutate) {
+  const rows = $$(".ai", list), before = new Map(rows.map(el => [el, el.getBoundingClientRect().top]));
+  mutate();
+  if (reduceMotion) return;
+  for (const el of rows) {
+    const dy = before.get(el) - el.getBoundingClientRect().top;
+    if (dy) el.animate([{ transform: `translateY(${dy}px)` }, { transform: "none" }], { duration: 220, easing: "cubic-bezier(.2,.7,.2,1)" });
+  }
+}
+const openRows = list => $$(".ai:not(.done)", list);
+function settle(row) {
+  const list = row.parentElement;
+  flip(list, () => {
+    if (row.classList.contains("done")) {
+      const firstDone = $$(".ai.done", list).find(el => el !== row);
+      list.insertBefore(row, firstDone || null);                   // top of the done group, below every open item
+    } else {
+      const rank = +row.dataset.rank;
+      const after = openRows(list).find(el => el !== row && +el.dataset.rank > rank);
+      list.insertBefore(row, after || $(".ai.done", list));        // back to its priority among open items
+    }
+  });
+}
+
+// Drag to reorder: grip (mouse/touch), or focus the grip and press ↑/↓
+let drag = null;
+async function saveOrder(list, previous) {
+  const rows = openRows(list), ranks = rows.map(el => +el.dataset.rank).sort((a, b) => a - b);
+  rows.forEach((el, i) => el.dataset.rank = ranks[i]);            // same slot swap the server does
+  try {
+    const r = await fetch("/api/order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Notetaker": "1" },
+      body: JSON.stringify({ keys: rows.map(el => el.dataset.key) }),
+    });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
+  } catch (err) {
+    flip(list, () => previous.forEach(([el, rank]) => { el.dataset.rank = rank; list.insertBefore(el, $(".ai.done", list)); }));
+    const row = previous[0]?.[0];
+    row?.insertAdjacentHTML("beforeend", `<span class="err">Couldn't save the order: ${err.message}</span>`);
+  }
+}
+const snapshot = list => openRows(list).map(el => [el, el.dataset.rank]);
+document.addEventListener("pointerdown", e => {
+  const grip = e.target.closest(".grip"), row = grip?.closest(".ai");
+  if (!row || !served || row.classList.contains("done") || e.button !== 0) return;
+  e.preventDefault();
+  const list = row.parentElement;
+  drag = { row, list, grip, offset: e.clientY - row.getBoundingClientRect().top, before: snapshot(list),
+           order: openRows(list).map(el => el.dataset.key).join() };
+  try { grip.setPointerCapture(e.pointerId); } catch (err) {}   // keeps events coming if the pointer leaves the row
+  row.classList.add("dragging"); document.body.classList.add("is-dragging");
+});
+document.addEventListener("pointermove", e => {
+  if (!drag) return;
+  const { row, list } = drag;
+  const others = openRows(list).filter(el => el !== row && el.offsetParent);   // visible open rows
+  const next = others.find(el => { const b = el.getBoundingClientRect(); return e.clientY < b.top + b.height / 2; });
+  const target = next || others.at(-1)?.nextSibling || null;
+  if (target !== row && target !== row.nextSibling) flip(list, () => list.insertBefore(row, target));
+  row.style.transform = "";
+  row.style.transform = `translateY(${e.clientY - drag.offset - row.getBoundingClientRect().top}px)`;
+});
+function endDrag() {
+  if (!drag) return;
+  const { row, list, before, order } = drag;
+  drag = null;
+  row.classList.remove("dragging"); document.body.classList.remove("is-dragging");
+  const dy = parseFloat(row.style.transform.replace(/[^-\d.]/g, "")) || 0;
+  row.style.transform = "";
+  if (dy && !reduceMotion) row.animate([{ transform: `translateY(${dy}px)` }, { transform: "none" }], { duration: 160, easing: "ease-out" });
+  if (openRows(list).map(el => el.dataset.key).join() !== order) saveOrder(list, before);
+}
+document.addEventListener("pointerup", endDrag);
+document.addEventListener("pointercancel", endDrag);
+document.addEventListener("keydown", e => {
+  const grip = e.target.closest?.(".grip"), row = grip?.closest(".ai");
+  if (!row || !served || row.classList.contains("done") || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
+  e.preventDefault();
+  const list = row.parentElement, before = snapshot(list);
+  const visible = openRows(list).filter(el => el.offsetParent), i = visible.indexOf(row);
+  const other = visible[i + (e.key === "ArrowUp" ? -1 : 1)];
+  if (!other) return;
+  flip(list, () => list.insertBefore(row, e.key === "ArrowUp" ? other : other.nextSibling));
+  grip.focus();
+  saveOrder(list, before);
 });
 
 // Search: filters the sidebar, and the action list on the home page
@@ -258,6 +388,7 @@ document.addEventListener("keydown", e => {
   if (typing) return;
   if (e.key === "/") { e.preventDefault(); q?.focus(); return; }
   if (e.key === "h") { location.href = $(".nav[data-home]").getAttribute("href"); return; }
+  if (e.key === "t" && txBtn) { txBtn.click(); return; }
   if (e.key === "j" || e.key === "k") {
     const links = $$("a.mt:not(.hidden)"), cur = links.findIndex(a => a.getAttribute("aria-current") === "page");
     const next = links[cur < 0 ? 0 : cur + (e.key === "j" ? 1 : -1)];
@@ -319,10 +450,14 @@ def inline(text: str) -> str:
 def site(notes_dir: Path) -> dict:
     """Everything the shell needs: meetings (newest first), action items, server port."""
     from .cli import all_actions, load_config, sessions
+    from .actions import by_priority, item_key
     cfg = load_config()
     meetings = sessions(notes_dir)
-    return {"meetings": meetings, "items": all_actions(notes_dir, cfg["my_names"], meetings),
-            "port": cfg["server_port"]}
+    items = by_priority(all_actions(notes_dir, cfg["my_names"], meetings), notes_dir)  # priority order
+    for rank, i in enumerate(items):
+        i["rank"] = rank
+        i["key"] = item_key(i)
+    return {"meetings": meetings, "items": items, "port": cfg["server_port"]}
 
 
 # ---------- shell ----------
@@ -370,7 +505,7 @@ def sidebar(ctx: dict, prefix: str, current: str | None) -> str:
 <nav class="side-list" aria-label="Meetings">
 {"".join(rows) or '<p class="empty-note">No meetings yet. Start one from the waveform menu.</p>'}
 </nav>
-<div class="side-foot"><span><kbd>/</kbd> search</span><span><kbd>j</kbd> <kbd>k</kbd> meetings</span><span><kbd>h</kbd> action items</span></div>
+<div class="side-foot"><span><kbd>/</kbd> search</span><span><kbd>j</kbd> <kbd>k</kbd> meetings</span><span><kbd>h</kbd> action items</span><span><kbd>t</kbd> transcript</span></div>
 </aside>"""
 
 
@@ -402,7 +537,10 @@ def action_row(item: dict, meeting: dict | None) -> str:
         when = f'<span class="when">{started:%-d %b}</span>' if started else '<span class="when"></span>'
     src = (f'<a class="src" href="{quote(item["folder"])}/notes.html">{html.escape(meeting["title"])}</a>'
            if meeting else "")
-    return (f'<div class="{cls}" data-folder="{html.escape(item["folder"])}" data-id="{item["id"]}">'
+    grip = (f'<button type="button" class="grip" aria-label="Reorder: drag, or press ↑ ↓" '
+            f'title="Drag to set priority">{ICON_GRIP}</button>')
+    return (f'<div class="{cls}" data-folder="{html.escape(item["folder"])}" data-id="{item["id"]}" '
+            f'data-key="{html.escape(item["key"])}" data-rank="{item["rank"]}">{grip}'
             f'<input type="checkbox" aria-label="Done"{" checked" if item["done"] else ""}>'
             f'{who}<span class="task">{inline(item["task"])}</span>{src}{when}</div>')
 
@@ -413,10 +551,9 @@ def file_hint(port: int) -> str:
 
 
 def render_index(notes_dir: Path, ctx: dict | None = None) -> Path:
+    from .actions import write_atomic
     out = notes_dir / "index.html"
-    tmp = out.with_suffix(".tmp")
-    tmp.write_text(index_page(notes_dir, ctx))
-    tmp.replace(out)  # atomic: the server and the pipeline both rebuild it
+    write_atomic(out, index_page(notes_dir, ctx))  # the server, the pipeline and the CLI all rebuild it
     return out
 
 
@@ -427,11 +564,11 @@ def index_page(notes_dir: Path, ctx: dict | None = None) -> str:
     ctx = ctx or site(notes_dir)
     by_folder = {Path(m["folder"]).name: m for m in ctx["meetings"]}
     items = [i for i in ctx["items"] if i["folder"] in by_folder]
-    open_ = sorted((i for i in items if not i["done"]), key=lambda i: i["folder"])
+    open_ = [i for i in items if not i["done"]]  # already in priority order (site)
     recent = sorted((i for i in items if i["done"] and not archived(i)), key=lambda i: i["done_on"] or "", reverse=True)
     old = sorted((i for i in items if archived(i)), key=lambda i: i["done_on"] or "", reverse=True)
     rows = lambda group: "\n".join(action_row(i, by_folder[i["folder"]]) for i in group)  # noqa: E731
-    head = ('<div class="ai-head" aria-hidden="true"><span></span><span class="h-who">Owner</span><span>Task</span>'
+    head = ('<div class="ai-head" aria-hidden="true"><span></span><span></span><span class="h-who">Owner</span><span>Task</span>'
             '<span class="h-src">Meeting</span><span>Date</span></div>')
     archive = (f'<details class="archive"><summary>Archive<span class="c">{len(old)}</span></summary>'
                f'{head}{rows(old)}</details>') if old else ""
@@ -525,12 +662,13 @@ def meeting_page(session: Path, ctx: dict | None = None) -> str:
     blocks = []
     if pending:
         blocks.append('<div class="pending">Summary is on its way: Claude Desktop will add it shortly. '
-                      "The transcript is on the right.</div>")
+                      "Open the transcript with the button above.</div>")
     else:
         for heading, body in sections(summary_md):
             if heading.lower() == "action items" and items:
                 open_n = sum(1 for i in items if not i["done"])
-                rows = "\n".join(action_row(i, None) for i in items)
+                ordered = [i for i in items if not i["done"]] + [i for i in items if i["done"]]
+                rows = "\n".join(action_row(i, None) for i in ordered)
                 # Whatever isn't a checkbox line (sub-bullets, plain lines, notes) still shows, below the rows.
                 rest = "\n".join(l.lstrip() if re.match(r"^\s+[-*] ", l) else l
                                  for l in body.splitlines() if not ITEM.match(l)).strip()
@@ -568,8 +706,11 @@ def meeting_page(session: Path, ctx: dict | None = None) -> str:
     bits.append(f'<a class="file-only" href="{(session / "notes.md").as_uri()}">notes.md</a>')
 
     title = meta.get("title", "Meeting")
-    transcript = (f'<aside class="tx" aria-label="Transcript"><h2>Transcript<span class="c">{len(segments)} lines</span></h2>'
+    transcript = (f'<aside class="tx" id="tx" aria-label="Transcript"><h2>Transcript<span class="c">{len(segments)} lines</span></h2>'
                   f"{transcript_html(segments)}</aside>") if segments else ""
-    body = f"""<div class="head"><h1>{html.escape(title)}</h1><div class="meta">{"".join(bits)}</div></div>
-<div class="cols"><article class="doc">{"".join(blocks)}</article>{transcript}</div>"""
+    toggle = (f'<button type="button" class="tx-toggle" aria-expanded="false" aria-controls="tx" title="Show or hide (t)">'
+              f'{ICON_CHEVRON}Transcript<span class="c">{len(segments)} lines</span></button>') if segments else ""
+    body = f"""<div class="head"><h1>{html.escape(title)}</h1><div class="meta">{"".join(bits)}</div>
+<span class="spacer"></span>{toggle}</div>
+<div class="cols tx-closed"><article class="doc">{"".join(blocks)}</article>{transcript}</div>"""
     return page(title, sidebar(ctx, "../", session.name), body)

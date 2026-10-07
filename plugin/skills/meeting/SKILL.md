@@ -43,7 +43,8 @@ everything that touches the archive. **Never write shell loops or `ls` parsing o
 - To show the user their meetings and action items, run `open "http://127.0.0.1:47821/"` (`server_port` in
   config.json). The menu bar app serves it, and ticking items works only there. If the app isn't running,
   fall back to `open "<notes_dir>/index.html"` (read-only).
-- `notetaker actions [--mine] [--all]`: action items as JSON lines (`id`, `folder`, `owner`, `task`, `mine`,
+- `notetaker actions [--mine] [--all]`: action items as JSON lines in the user's priority order (set by
+  dragging on the meetings page, stored in `<notes_dir>/.priority.json`; don't edit that file by hand) (`id`, `folder`, `owner`, `task`, `mine`,
   `done`, `done_on`), open ones unless `--all`. Use it for "what's still open?".
 - `notetaker done "<folder>" <id> [--undo]`: tick an item. It rewrites the line in `notes.md` as
   `- [x] … ✅ YYYY-MM-DD`; done items move to the page's archive after 7 days. Only tick items when the user

@@ -2,12 +2,18 @@
 
 notes.md stays the source of truth. Ticking an item rewrites its line as `- [x] … ✅ YYYY-MM-DD`
 (the Obsidian Tasks convention); the done date is what moves it to the archive later.
+
+Priority (drag to reorder on the meetings page) is one global order of item keys ("<folder>/<id>"),
+kept in <notes_dir>/.priority.json. Items not in it yet (new meetings) come after the ranked ones.
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
+import os
 import re
+import tempfile
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -16,6 +22,7 @@ DONE_ON = re.compile(r"\s*✅\s*(\d{4}-\d{2}-\d{2})$")
 # "Me: task", "**Me**: task" and "**Me:** task" (colon inside or outside the bold)
 OWNER = re.compile(r"^\*{0,2}([^:*]{1,40}?)(?::\*{0,2}|\*{0,2}:)\s+(.+)$")
 ARCHIVE_AFTER_DAYS = 7
+ORDER_FILE = ".priority.json"
 
 
 def item_id(text: str, nth: int = 0) -> str:
@@ -99,3 +106,49 @@ def set_done(session: Path, wanted_id: str, done: bool, today: date | None = Non
         notes.write_text("\n".join(lines) + "\n")
         return {"id": wanted_id, "done": done, "done_on": stamp if done else None}
     return None
+
+
+# ---------- priority ----------
+
+def item_key(item: dict) -> str:
+    return f"{item['folder']}/{item['id']}"
+
+
+def write_atomic(path: Path, text: str) -> None:
+    """Unique temp file + rename: safe when the server, the pipeline and the CLI write at the same time."""
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(text)
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
+def load_order(notes_dir: Path) -> list[str]:
+    try:
+        order = json.loads((notes_dir / ORDER_FILE).read_text()).get("order", [])
+        return [k for k in order if isinstance(k, str)]
+    except (OSError, ValueError, AttributeError):
+        return []
+
+
+def by_priority(items: list[dict], notes_dir: Path) -> list[dict]:
+    """Ranked items in priority order, then unranked ones in their given order (stable)."""
+    rank = {k: i for i, k in enumerate(load_order(notes_dir))}
+    tail = len(rank)
+    return sorted(items, key=lambda it: rank.get(item_key(it), tail))
+
+
+def reorder(notes_dir: Path, items: list[dict], keys: list[str]) -> list[str]:
+    """Apply a drag: `keys` is the new order of some items (one page's list, possibly filtered to "Mine").
+    They swap among the slots they already hold in the global order; every other item keeps its place."""
+    full = [item_key(i) for i in by_priority(items, notes_dir)]
+    known = set(full)
+    moved = list(dict.fromkeys(k for k in keys if k in known))
+    slots = sorted(full.index(k) for k in moved)
+    for slot, key in zip(slots, moved):
+        full[slot] = key
+    write_atomic(notes_dir / ORDER_FILE, json.dumps({"order": full}, ensure_ascii=False, indent=0) + "\n")
+    return full

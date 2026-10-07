@@ -2,7 +2,7 @@
 
 Started by the menu bar app. Binds to loopback only. Two guards keep other web pages out:
 - the Host header must be 127.0.0.1/localhost on this port (blocks DNS rebinding reads of the notes);
-- POST needs a JSON body and an X-Notetaker header, which a cross-site page can't send without a CORS
+- POST (/api/done, /api/order) needs a JSON body and an X-Notetaker header, which a cross-site page can't send without a CORS
   preflight that this server never approves (blocks CSRF ticks).
 """
 
@@ -73,12 +73,20 @@ def make_handler(notes_dir: Path, port: int, rebuild: Callable[[], Path]) -> typ
         def do_POST(self):
             if not self.host_ok():
                 return
-            if (urlparse(self.path).path != "/api/done" or self.headers.get("X-Notetaker") != "1"
+            path = urlparse(self.path).path
+            if (path not in ("/api/done", "/api/order") or self.headers.get("X-Notetaker") != "1"
                     or not self.headers.get("Content-Type", "").startswith("application/json")):
                 self.send_json(403, {"error": "forbidden"})
                 return
+            length = int(self.headers.get("Content-Length", 0) or 0)
+            if length > 512_000:
+                self.send_json(413, {"error": "too large"})
+                return
+            if path == "/api/order":
+                self.post_order(length)
+                return
             try:
-                req = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
+                req = json.loads(self.rfile.read(length))
                 folder, item, done = str(req["folder"]), str(req["id"]), bool(req["done"])
             except (ValueError, KeyError, TypeError):
                 self.send_json(400, {"error": "bad request"})
@@ -98,6 +106,28 @@ def make_handler(notes_dir: Path, port: int, rebuild: Callable[[], Path]) -> typ
                 self.send_json(404, {"error": "item not found; reload the page"})
                 return
             self.send_json(200, result)
+
+        def post_order(self, length: int) -> None:
+            """New priority for some items: {"keys": ["<folder>/<id>", ...]} in their new order."""
+            try:
+                keys = json.loads(self.rfile.read(length))["keys"]
+                if not isinstance(keys, list) or not all(isinstance(k, str) and len(k) < 400 for k in keys):
+                    raise TypeError
+            except (ValueError, KeyError, TypeError):
+                self.send_json(400, {"error": "bad request"})
+                return
+            from .actions import reorder
+            from .html import render, site
+            with LOCK:
+                ctx = site(root)
+                reorder(root, ctx["items"], keys)  # unknown keys are ignored
+                folders = {k.rsplit("/", 1)[0] for k in keys}
+                fresh = site(root)
+                for m in fresh["meetings"]:  # keep the file versions of the touched meetings in order too
+                    if Path(m["folder"]).name in folders and m["notes"]:
+                        render(Path(m["folder"]), fresh)
+                rebuild()
+            self.send_json(200, {"ok": True})
 
     return Handler
 

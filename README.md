@@ -64,7 +64,11 @@ opens when it's ready. Notes go to `~/Notes/meetings/<date time> – <title>/not
 
 **Meetings & Action Items** in the menu opens `http://127.0.0.1:47821/`: every action item across meetings
 (yours by default, *Everyone* for the rest), then all meetings by day. Tick an item and its line in that
-meeting's `notes.md` becomes `- [x] … ✅ <date>`; done items fold into the Archive after 7 days. The app
+meeting's `notes.md` becomes `- [x] … ✅ <date>` and the item slides to the bottom of the list; done items fold
+into the Archive after 7 days. Drag an item by its ⋮⋮ grip (or focus the grip and press ↑/↓) to set its
+priority; the order is shared by the overview and each meeting's page and kept in
+`~/Notes/meetings/.priority.json`. On a meeting page the transcript is collapsed; open it with the
+**Transcript** button or <kbd>t</kbd>. The app
 serves this page on loopback only while it runs. `~/Notes/meetings/index.html` is the same page, read-only.
 
 Scriptable: `open notetaker://start`, `open "notetaker://stop?mode=claude|local"`, `open notetaker://discard`.

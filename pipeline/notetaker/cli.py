@@ -284,7 +284,7 @@ def main() -> None:
     sub.add_parser("warmup", help="set up the speech engine: download the Whisper model (~3 GB)")
     sub.add_parser("doctor", help="check that everything needed is in place (JSON)")
     sub.add_parser("index", help="(re)build index.html, the list of all meetings, and print its path")
-    ac = sub.add_parser("actions", help="action items across meetings as JSON lines (open ones unless --all)")
+    ac = sub.add_parser("actions", help="action items across meetings as JSON lines, in priority order (open ones unless --all)")
     ac.add_argument("--all", action="store_true", help="include done items")
     ac.add_argument("--mine", action="store_true", help="only items owned by my_names")
     dn = sub.add_parser("done", help="tick (or --undo) an action item by the id from `actions`")
@@ -347,7 +347,8 @@ def main() -> None:
         print(write_index(notes_dir))
         return
     if args.cmd == "actions":
-        for i in all_actions(notes_dir, load_config()["my_names"]):
+        from .actions import by_priority
+        for i in by_priority(all_actions(notes_dir, load_config()["my_names"]), notes_dir):
             if (args.all or not i["done"]) and (not args.mine or i["mine"]):
                 print(json.dumps(i, ensure_ascii=False))
         return
