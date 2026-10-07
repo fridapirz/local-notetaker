@@ -46,12 +46,7 @@ enum Pipeline {
         proc.executableURL = URL(fileURLWithPath: uv)
         proc.arguments = ["run", "--quiet", "--frozen", "--project", project.path, "--python", "3.12",
                           "notetaker", "process", session.path, "--mode", mode]
-        var env = ProcessInfo.processInfo.environment
-        env["PATH"] = "\(home.path)/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:" + (env["PATH"] ?? "")
-        env["UV_PROJECT_ENVIRONMENT"] = venvDir().path
-        env["PYTHONUNBUFFERED"] = "1"
-        env["TOKENIZERS_PARALLELISM"] = "false"
-        proc.environment = env
+        proc.environment = environment()
 
         let out = Pipe()
         proc.standardOutput = out
@@ -91,6 +86,46 @@ enum Pipeline {
         }.value
     }
 
+    static func environment() -> [String: String] {
+        var env = ProcessInfo.processInfo.environment
+        env["PATH"] = "\(home.path)/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:" + (env["PATH"] ?? "")
+        env["UV_PROJECT_ENVIRONMENT"] = venvDir().path
+        env["PYTHONUNBUFFERED"] = "1"
+        env["TOKENIZERS_PARALLELISM"] = "false"
+        return env
+    }
+
+    // MARK: Meetings page server (`notetaker serve`): index with tickable action items, 127.0.0.1 only.
+
+    static var serverPort: Int {
+        guard let data = try? Data(contentsOf: configFile),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let port = json["server_port"] as? Int else { return 47821 }
+        return port
+    }
+
+    static var meetingsPage: URL { URL(string: "http://127.0.0.1:\(serverPort)/")! }
+
+    nonisolated(unsafe) private static var server: Process?
+
+    /// Started at launch, stopped at quit (the server also exits on its own if the app goes away).
+    static func startServer() {
+        guard server?.isRunning != true, let uv = uvPath, let project = pipelineDir else { return }
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: uv)
+        proc.arguments = ["run", "--quiet", "--project", project.path, "--python", "3.12", "notetaker", "serve",
+                          "--app-pid", String(ProcessInfo.processInfo.processIdentifier)]
+        proc.environment = environment()
+        proc.standardOutput = FileHandle.nullDevice
+        proc.standardError = FileHandle.nullDevice
+        try? proc.run()
+        server = proc
+    }
+
+    static func stopServer() {
+        server?.terminate()
+    }
+
     static func recentNotes(limit: Int = 8) -> [URL] {
         let fm = FileManager.default
         guard let dirs = try? fm.contentsOfDirectory(at: notesDir, includingPropertiesForKeys: nil) else { return [] }
@@ -100,8 +135,15 @@ enum Pipeline {
             .prefix(limit).map { $0 }
     }
 
-    /// The human-friendly page (notes.html) next to notes.md, falling back to the Markdown.
+    /// The human-friendly page for a meeting: served (sidebar + tickable action items) while the server runs,
+    /// else notes.html next to notes.md, falling back to the Markdown.
     static func readable(_ notesMD: URL) -> URL {
+        let folder = notesMD.deletingLastPathComponent().lastPathComponent
+        if server?.isRunning == true,
+           let name = folder.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(CharacterSet(charactersIn: "/"))),
+           let url = URL(string: "\(meetingsPage.absoluteString)\(name)/notes.html") {
+            return url
+        }
         let page = notesMD.deletingLastPathComponent().appendingPathComponent("notes.html")
         return FileManager.default.fileExists(atPath: page.path) ? page : notesMD
     }

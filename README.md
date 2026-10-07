@@ -62,11 +62,16 @@ Settings › Notifications so the prompt stays on screen until you answer.
 Click the waveform icon → **Start Recording** → **Stop & Summarize with Claude** (or **Locally**). The note
 opens when it's ready. Notes go to `~/Notes/meetings/<date time> – <title>/notes.md`.
 
+**Meetings & Action Items** in the menu opens `http://127.0.0.1:47821/`: every action item across meetings
+(yours by default, *Everyone* for the rest), then all meetings by day. Tick an item and its line in that
+meeting's `notes.md` becomes `- [x] … ✅ <date>`; done items fold into the Archive after 7 days. The app
+serves this page on loopback only while it runs. `~/Notes/meetings/index.html` is the same page, read-only.
+
 Scriptable: `open notetaker://start`, `open "notetaker://stop?mode=claude|local"`, `open notetaker://discard`.
 
 Config (`~/.config/notetaker/`):
 - `config.json`: `notes_dir`, `summary_language` (default English), `vocabulary` (names Whisper should
-  spell correctly)
+  spell correctly), `my_names` (action item owners that count as yours, default `["Me"]`), `server_port`
 - `context.md`: your team, projects and people; passed to the summarizer
 
 Re-process a session: `uv run --project pipeline notetaker process "<session dir>" [--mode local] [--retranscribe]`
