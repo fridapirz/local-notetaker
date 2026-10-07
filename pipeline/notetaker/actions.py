@@ -17,8 +17,16 @@ OWNER = re.compile(r"^\*{0,2}([^:*]{1,40}?)\*{0,2}:\s+(.+)$")
 ARCHIVE_AFTER_DAYS = 7
 
 
-def item_id(text: str) -> str:
-    return hashlib.sha1(text.encode()).hexdigest()[:10]
+def item_id(text: str, nth: int = 0) -> str:
+    """Hash of the text; repeats of the same text in one note get their occurrence number mixed in."""
+    return hashlib.sha1((text if nth == 0 else f"{text}#{nth}").encode()).hexdigest()[:10]
+
+
+def _valid_date(s: str | None) -> str | None:
+    try:
+        return date.fromisoformat(s).isoformat() if s else None
+    except ValueError:  # hand-edited "✅ 2026-02-30": treat as done without a date
+        return None
 
 
 def _section(lines: list[str]) -> range:
@@ -40,7 +48,7 @@ def is_mine(owner: str | None, my_names: list[str]) -> bool:
 
 def parse(notes: Path, my_names: list[str]) -> list[dict]:
     lines = notes.read_text().splitlines()
-    items = []
+    items, seen = [], {}
     for i in _section(lines):
         m = ITEM.match(lines[i])
         if not m:
@@ -48,16 +56,17 @@ def parse(notes: Path, my_names: list[str]) -> list[dict]:
         text = m.group(2)
         d = DONE_ON.search(text)
         text = DONE_ON.sub("", text)
+        nth = seen[text] = seen.get(text, -1) + 1
         o = OWNER.match(text)
         owner, task = (o.group(1).strip(), o.group(2)) if o else (None, text)
         items.append({
-            "id": item_id(text),
+            "id": item_id(text, nth),
             "folder": notes.parent.name,
             "owner": owner,
             "task": task,
             "mine": is_mine(owner, my_names),
             "done": m.group(1) != " ",
-            "done_on": d.group(1) if d else None,
+            "done_on": _valid_date(d.group(1)) if d else None,
         })
     return items
 
@@ -75,12 +84,14 @@ def set_done(session: Path, wanted_id: str, done: bool, today: date | None = Non
     """Tick or untick one item in notes.md; returns the updated item, or None if it wasn't found."""
     notes = session / "notes.md"
     lines = notes.read_text().splitlines()
+    seen: dict[str, int] = {}
     for i in _section(lines):
         m = ITEM.match(lines[i])
         if not m:
             continue
         text = DONE_ON.sub("", m.group(2))
-        if item_id(text) != wanted_id:
+        nth = seen[text] = seen.get(text, -1) + 1
+        if item_id(text, nth) != wanted_id:
             continue
         stamp = (today or date.today()).isoformat()
         lines[i] = f"- [x] {text} ✅ {stamp}" if done else f"- [ ] {text}"
