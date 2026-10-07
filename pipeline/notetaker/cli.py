@@ -153,7 +153,15 @@ def write_notes(session: Path, notes: str, summary_by: str, segments: list[dict]
 def all_actions(notes_dir: Path, my_names: list[str], meetings: list[dict] | None = None) -> list[dict]:
     from .actions import parse
     meetings = sessions(notes_dir) if meetings is None else meetings
-    return [i for s in meetings if s["notes"] for i in parse(Path(s["notes"]), my_names)]
+    items = []
+    for s in meetings:
+        if not s["notes"]:
+            continue
+        try:
+            items += parse(Path(s["notes"]), my_names)
+        except (OSError, UnicodeDecodeError) as e:  # deleted meanwhile, or saved in another encoding
+            print(f"skipped action items in {Path(s['folder']).name}: {e}", file=sys.stderr)
+    return items
 
 
 def write_index(notes_dir: Path) -> Path:
@@ -226,7 +234,10 @@ def sessions(notes_dir: Path) -> list[dict]:
             continue
         fm = {}
         if notes.exists():
-            head = notes.read_text().split("\n---\n", 1)[0]
+            try:
+                head = notes.read_text(errors="replace").split("\n---\n", 1)[0]
+            except OSError:  # removed while listing
+                continue
             for line in head.splitlines():
                 if ":" in line and not line.startswith("---"):
                     k, v = line.split(":", 1)

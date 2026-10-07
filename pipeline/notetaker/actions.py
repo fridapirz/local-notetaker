@@ -13,7 +13,8 @@ from pathlib import Path
 
 ITEM = re.compile(r"^- \[([ xX])\] (.+?)\s*$")
 DONE_ON = re.compile(r"\s*✅\s*(\d{4}-\d{2}-\d{2})$")
-OWNER = re.compile(r"^\*{0,2}([^:*]{1,40}?)\*{0,2}:\s+(.+)$")
+# "Me: task", "**Me**: task" and "**Me:** task" (colon inside or outside the bold)
+OWNER = re.compile(r"^\*{0,2}([^:*]{1,40}?)(?::\*{0,2}|\*{0,2}:)\s+(.+)$")
 ARCHIVE_AFTER_DAYS = 7
 
 
