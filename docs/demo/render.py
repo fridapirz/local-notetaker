@@ -1,6 +1,7 @@
 """Render docs/demo/demo.html frame by frame (deterministic) and encode an MP4 + GIF.
 
-    uv run --with playwright python docs/demo/render.py            # full video
+    uv run --with playwright python docs/demo/render.py                          # demo.html → notetaker-demo.mp4
+    uv run --with playwright python docs/demo/render.py --page whats-new-0.3.html  # → whats-new-0.3.mp4
     uv run --with playwright python docs/demo/render.py --stills 1.5 5 11 15 17.8 19.5
 Uses the installed Google Chrome (no browser download).
 """
@@ -21,20 +22,23 @@ FFMPEG = shutil.which("ffmpeg") or "/opt/anaconda3/bin/ffmpeg"
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--stills", nargs="*", type=float)
-    ap.add_argument("--out", default=str(HERE / "notetaker-demo.mp4"))
+    ap.add_argument("--page", default="demo.html")
+    ap.add_argument("--out", help="default: notetaker-demo.mp4 for demo.html, else <page>.mp4")
     args = ap.parse_args()
+    stem = "notetaker-demo" if args.page == "demo.html" else pathlib.Path(args.page).stem
+    args.out = args.out or str(HERE / f"{stem}.mp4")
 
     with sync_playwright() as p:
         browser = p.chromium.launch(channel="chrome", args=["--allow-file-access-from-files"])
         page = browser.new_page(viewport={"width": 1920, "height": 1080}, device_scale_factor=1)
-        page.goto((HERE / "demo.html").as_uri() + "?capture")
+        page.goto((HERE / args.page).as_uri() + "?capture")
         page.wait_for_load_state("networkidle")
         duration = page.evaluate("window.DURATION")
 
         if args.stills is not None:
             for t in args.stills:
                 page.evaluate(f"render({t})")
-                path = HERE / f"still-{t:05.1f}.png"
+                path = HERE / f"still-{stem}-{t:05.1f}.png"
                 page.screenshot(path=str(path))
                 print(path)
             browser.close()
