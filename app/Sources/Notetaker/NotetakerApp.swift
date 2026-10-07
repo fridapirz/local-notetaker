@@ -45,7 +45,13 @@ final class AppState: ObservableObject {
 
     enum Phase: Equatable { case idle, recording(Date), processing(String), failed(String) }
 
-    @Published var phase: Phase = .idle { didSet { refreshPanel() } }
+    @Published var phase: Phase = .idle {
+        didSet {
+            // Recording + notes are over: the next meeting's card starts in the corner again.
+            if Self.inMeeting(oldValue) && !Self.inMeeting(phase) { panel.resetPosition() }
+            refreshPanel()
+        }
+    }
     @Published var elapsed = "0:00"
     @Published var recent: [URL] = Pipeline.recentNotes()
     @Published var launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -89,13 +95,16 @@ final class AppState: ObservableObject {
         detectedApp = app
         switch phase {
         case .recording: recordingSawCall = true  // keep recording; the pill shows the new app
-        default: promptDismissed = false          // new call in another app: offer again
+        default:                                  // new call in another app: offer again
+            promptDismissed = false
+            promptGone()
         }
     }
 
     private func meetingEnded() {
         detectedApp = nil
         promptDismissed = false
+        promptGone()
         Notifier.shared.clearMeetingPrompt()
         if case .recording = phase, recordingSawCall {
             Notifier.shared.info("Call ended", "Stopped recording — making your notes…")
@@ -107,6 +116,24 @@ final class AppState: ObservableObject {
         switch phase {
         case .idle, .failed: start()
         default: break
+        }
+    }
+
+    /// "Not now" on the floating prompt.
+    func declinePrompt() {
+        promptDismissed = true
+        promptGone()
+    }
+
+    /// A call prompt that never became a recording is a finished meeting too, as far as the card goes.
+    private func promptGone() {
+        if !Self.inMeeting(phase) { panel.resetPosition() }
+    }
+
+    private static func inMeeting(_ phase: Phase) -> Bool {
+        switch phase {
+        case .recording, .processing: return true
+        case .idle, .failed: return false
         }
     }
 
@@ -123,7 +150,7 @@ final class AppState: ObservableObject {
     func toggleAutoDetect() {
         autoDetect.toggle()
         UserDefaults.standard.set(autoDetect, forKey: "autoDetect")
-        if autoDetect { detector.start() } else { detector.stop(); detectedApp = nil }
+        if autoDetect { detector.start() } else { detector.stop(); detectedApp = nil; promptGone() }
     }
 
     func handle(_ url: URL) {
@@ -149,11 +176,13 @@ final class AppState: ObservableObject {
             do {
                 try await recorder.start(in: dir)
                 recordingSawCall = detector.inCall
-                promptDismissed = true  // don't re-offer for this call after stopping manually
                 pillHidden = false
                 Notifier.shared.clearMeetingPrompt()
                 let started = Date()
+                // Recording before dismissing the prompt, so the card goes straight from prompt to pill
+                // (and stays where it was dragged) instead of hiding in between.
                 phase = .recording(started)
+                promptDismissed = true  // don't re-offer for this call after stopping manually
                 elapsed = "0:00"
                 timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
                     Task { @MainActor in self?.tick(started) }

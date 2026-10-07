@@ -59,6 +59,10 @@ automatically. It works by checking which apps hold the microphone, which needs 
 off with **Detect Meetings** in the menu. Tip: set Notetaker's notification style to **Alerts** in System
 Settings › Notifications so the prompt stays on screen until you answer.
 
+The floating card (call prompt, recording pill, *Making notes…*) sits in the top-right corner. Drag it
+anywhere if it covers something; it stays there until that meeting's notes are done, and the next meeting
+starts in the corner again.
+
 Click the waveform icon → **Start Recording** → **Stop & Summarize with Claude** (or **Locally**). The note
 opens when it's ready. Notes go to `~/Notes/meetings/<date time> – <title>/notes.md`.
 
