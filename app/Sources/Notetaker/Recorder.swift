@@ -11,13 +11,41 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
     private var startDate = Date()
     private(set) var sessionDir: URL?
     var onError: ((Error) -> Void)?
+    /// macOS stopped the capture (display slept, screen locked, lid closed). The files stay open:
+    /// call resume() to continue the same recording; gaps are filled with silence.
+    var onStreamStopped: ((Error) -> Void)?
 
     func start(in dir: URL) async throws {
         guard await AVCaptureDevice.requestAccess(for: .audio) else {
             throw NSError(domain: "Notetaker", code: 1, userInfo: [NSLocalizedDescriptionKey:
                 "Microphone access denied — enable Notetaker in System Settings › Privacy & Security › Microphone"])
         }
-        // Throws if Screen & System Audio Recording permission is missing (macOS shows the prompt).
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        sessionDir = dir
+        tracks = [
+            .audio: TrackWriter(url: dir.appendingPathComponent("system.wav")),
+            .microphone: TrackWriter(url: dir.appendingPathComponent("mic.wav")),
+        ]
+        startTime = CMClockGetTime(CMClockGetHostTimeClock())
+        startDate = Date()
+        do {
+            try await startStream()
+        } catch {
+            sessionDir = nil
+            tracks = [:]
+            throw error
+        }
+    }
+
+    /// Continue the current recording after macOS stopped the capture.
+    func resume() async throws {
+        guard sessionDir != nil, stream == nil else { return }
+        try await startStream()
+    }
+
+    private func startStream() async throws {
+        // Throws if Screen & System Audio Recording permission is missing (macOS shows the prompt),
+        // and while the display is asleep (resume() is retried until it's back).
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         guard let display = content.displays.first else {
             throw NSError(domain: "Notetaker", code: 2, userInfo: [NSLocalizedDescriptionKey: "No display found"])
@@ -35,15 +63,6 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
         config.height = 2
         config.minimumFrameInterval = CMTime(value: 1, timescale: 1)
         config.showsCursor = false
-
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        sessionDir = dir
-        tracks = [
-            .audio: TrackWriter(url: dir.appendingPathComponent("system.wav")),
-            .microphone: TrackWriter(url: dir.appendingPathComponent("mic.wav")),
-        ]
-        startTime = CMClockGetTime(CMClockGetHostTimeClock())
-        startDate = Date()
 
         let stream = SCStream(filter: filter, configuration: config, delegate: self)
         try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: queue)
@@ -88,8 +107,11 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
     }
 
     func stream(_ stream: SCStream, didStopWithError error: Error) {
-        onError?(error)
+        if stream === self.stream { self.stream = nil }
+        onStreamStopped?(error)
     }
+
+    var isCapturing: Bool { stream != nil }
 }
 
 /// Writes one audio track, inserting silence for gaps so timestamps stay aligned.
@@ -125,9 +147,14 @@ final class TrackWriter {
         let expected = AVAudioFramePosition(CMTimeGetSeconds(CMTimeSubtract(pts, firstPTS)) * format.sampleRate)
         let gap = expected - framesWritten
         if gap > AVAudioFramePosition(format.sampleRate * 0.1),
-           let silence = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(gap)) {
-            silence.frameLength = AVAudioFrameCount(gap)  // buffers are zero-initialised
-            try file.write(from: silence)
+           let silence = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(format.sampleRate)) {
+            var left = gap  // in 1-second chunks: a capture gap (display asleep) can be many minutes
+            while left > 0 {
+                let n = min(left, AVAudioFramePosition(format.sampleRate))
+                silence.frameLength = AVAudioFrameCount(n)  // buffers are zero-initialised
+                try file.write(from: silence)
+                left -= n
+            }
             framesWritten += gap
         }
         try file.write(from: buffer)

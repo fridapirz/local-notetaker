@@ -126,7 +126,7 @@ struct FloatingView: View {
     private var recordingPill: some View {
         HStack(spacing: 10) {
             PulsingDot()
-            Text("Recording").font(.system(size: 13, weight: .semibold))
+            Text(state.reconnecting ? "Reconnecting…" : "Recording").font(.system(size: 13, weight: .semibold))
             Text(state.elapsed).font(.system(size: 13).monospacedDigit()).foregroundStyle(.secondary)
             if let app = state.detectedApp {
                 Text("· \(app)").font(.system(size: 12)).foregroundStyle(.secondary)

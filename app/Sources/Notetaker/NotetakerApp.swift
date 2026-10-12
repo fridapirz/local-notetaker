@@ -1,4 +1,5 @@
 import AppKit
+import IOKit.pwr_mgt
 import ServiceManagement
 import SwiftUI
 
@@ -69,10 +70,17 @@ final class AppState: ObservableObject {
     private var lastSession: URL?
     /// Auto-stop only recordings that actually covered a call (not e.g. a manual voice memo).
     private var recordingSawCall = false
+    /// macOS stopped the capture mid-recording (display asleep, screen locked); we're retrying.
+    @Published var reconnecting = false
+    private var reconnectTask: Task<Void, Never>?
+    private var displayAssertion: IOPMAssertionID = 0
 
     init() {
         recorder.onError = { [weak self] error in
             Task { @MainActor in self?.fail("Recording error: \(error.localizedDescription)") }
+        }
+        recorder.onStreamStopped = { [weak self] _ in
+            Task { @MainActor in self?.captureStopped() }
         }
         Notifier.shared.setup()
         detector.onMeetingStarted = { [weak self] app in self?.meetingStarted(app) }
@@ -187,10 +195,58 @@ final class AppState: ObservableObject {
                 timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
                     Task { @MainActor in self?.tick(started) }
                 }
+                keepDisplayAwake(true)
             } catch {
                 fail(error.localizedDescription)
             }
         }
+    }
+
+    /// The display going to sleep stops ScreenCaptureKit, so keep it awake while recording
+    /// (like a video player). Closing the lid or locking the screen can still stop the capture:
+    /// captureStopped() then reconnects.
+    private func keepDisplayAwake(_ on: Bool) {
+        if on, displayAssertion == 0 {
+            IOPMAssertionCreateWithName(kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,
+                                        IOPMAssertionLevel(kIOPMAssertionLevelOn),
+                                        "Notetaker is recording a meeting" as CFString, &displayAssertion)
+        } else if !on, displayAssertion != 0 {
+            IOPMAssertionRelease(displayAssertion)
+            displayAssertion = 0
+        }
+    }
+
+    /// macOS stopped the capture. Keep the recording (same files; the gap becomes silence) and retry
+    /// every 3 s for up to 10 minutes, e.g. until the screen is unlocked or the lid opened. If it never
+    /// comes back, make notes from what was recorded instead of losing it.
+    private func captureStopped() {
+        guard case .recording = phase, reconnectTask == nil else { return }
+        reconnecting = true
+        reconnectTask = Task {
+            for _ in 0..<200 {
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                guard case .recording = phase, !Task.isCancelled else { break }
+                if (try? await recorder.resume()) != nil {
+                    reconnecting = false
+                    reconnectTask = nil
+                    return
+                }
+            }
+            reconnecting = false
+            reconnectTask = nil
+            if case .recording = phase {
+                Notifier.shared.info("Recording stopped", "Couldn't reconnect, so making notes from what was recorded")
+                stop(mode: "claude")
+            }
+        }
+    }
+
+    private func endCapture() {
+        timer?.invalidate()
+        reconnectTask?.cancel()
+        reconnectTask = nil
+        reconnecting = false
+        keepDisplayAwake(false)
     }
 
     private func tick(_ started: Date) {
@@ -200,7 +256,7 @@ final class AppState: ObservableObject {
     }
 
     func stop(mode: String) {
-        timer?.invalidate()
+        endCapture()
         Task {
             guard let session = await recorder.stop() else { return phase = .idle }
             lastSession = session
@@ -209,7 +265,7 @@ final class AppState: ObservableObject {
     }
 
     func discard() {
-        timer?.invalidate()
+        endCapture()
         Task {
             if let session = await recorder.stop() { try? FileManager.default.removeItem(at: session) }
             phase = .idle
@@ -239,8 +295,12 @@ final class AppState: ObservableObject {
     }
 
     private func fail(_ message: String) {
-        timer?.invalidate()
+        endCapture()
         phase = .failed(message)
+        // Never leave a recording half-written: close the files and write meta.json so Retry works.
+        if recorder.sessionDir != nil {
+            Task { if let session = await recorder.stop() { lastSession = session } }
+        }
     }
 
     var canRetry: Bool { lastSession != nil }

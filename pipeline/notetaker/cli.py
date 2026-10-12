@@ -141,6 +141,8 @@ def write_notes(session: Path, notes: str, summary_by: str, segments: list[dict]
     if rename and session.name == f"{started:%Y-%m-%d %H%M}" and not target.exists():
         session.rename(target)
         session = target
+    if summary_by != "pending":  # a real summary supersedes any request queued for Claude Desktop earlier
+        (session / "summary_request.md").unlink(missing_ok=True)
     from .html import render
     render(session)  # notes.html next to notes.md: what the app opens for humans
     try:
