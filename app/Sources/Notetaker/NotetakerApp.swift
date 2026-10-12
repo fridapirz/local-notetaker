@@ -70,6 +70,8 @@ final class AppState: ObservableObject {
     private var lastSession: URL?
     /// Auto-stop only recordings that actually covered a call (not e.g. a manual voice memo).
     private var recordingSawCall = false
+    /// Consent reminder under the recording pill for the first seconds of each recording.
+    @Published var consentHint = false { didSet { refreshPanel() } }
     /// macOS stopped the capture mid-recording (display asleep, screen locked); we're retrying.
     @Published var reconnecting = false
     private var reconnectTask: Task<Void, Never>?
@@ -196,6 +198,8 @@ final class AppState: ObservableObject {
                     Task { @MainActor in self?.tick(started) }
                 }
                 keepDisplayAwake(true)
+                consentHint = true
+                Task { try? await Task.sleep(nanoseconds: 10_000_000_000); consentHint = false }
             } catch {
                 fail(error.localizedDescription)
             }

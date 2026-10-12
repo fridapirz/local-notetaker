@@ -59,6 +59,10 @@ automatically. It works by checking which apps hold the microphone, which needs 
 off with **Detect Meetings** in the menu. Tip: set Notetaker's notification style to **Alerts** in System
 Settings › Notifications so the prompt stays on screen until you answer.
 
+**Consent:** the call prompt and, for its first 10 seconds, the recording pill remind you to tell everyone
+on the call that you're recording. Recording people usually needs their consent; that's your
+responsibility as the user.
+
 The floating card (call prompt, recording pill, *Making notes…*) sits in the top-right corner. Drag it
 anywhere if it covers something; it stays there until that meeting's notes are done, and the next meeting
 starts in the corner again.

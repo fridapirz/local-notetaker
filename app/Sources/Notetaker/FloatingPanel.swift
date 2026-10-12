@@ -113,6 +113,8 @@ struct FloatingView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(app) call detected").font(.system(size: 14, weight: .semibold))
                 Text("Take notes for this meeting?").font(.system(size: 12)).foregroundStyle(.secondary)
+                Label("Let everyone know before you start: recording needs their consent.", systemImage: "person.2.wave.2")
+                    .font(.system(size: 11)).foregroundStyle(.secondary).padding(.top, 2)
             }
             Spacer(minLength: 12)
             Button("Not now") { state.declinePrompt() }
@@ -120,10 +122,20 @@ struct FloatingView: View {
             Button("Start notes") { state.start() }
                 .buttonStyle(.borderedProminent).tint(Color(red: 0.36, green: 0.30, blue: 0.94)).controlSize(.large)
         }
-        .frame(width: 400)
+        .frame(width: 440)
     }
 
     private var recordingPill: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            pillRow
+            if state.consentHint {
+                Label("Remember to tell everyone you're recording", systemImage: "person.2.wave.2")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var pillRow: some View {
         HStack(spacing: 10) {
             PulsingDot()
             Text(state.reconnecting ? "Reconnecting…" : "Recording").font(.system(size: 13, weight: .semibold))

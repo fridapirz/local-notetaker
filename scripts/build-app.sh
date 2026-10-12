@@ -68,6 +68,18 @@ fi
 [ "${NO_INSTALL:-}" = 1 ] && { echo "Built $APP"; exit 0; }
 DEST="$HOME/Applications"
 mkdir -p "$DEST"
+# Installing restarts Notetaker, which would cut off a recording in progress. A session folder whose
+# audio changed in the last minute and has no meta.json yet is still being recorded.
+NOTES_DIR=$(python3 -c 'import json,os;p=os.path.expanduser("~/.config/notetaker/config.json");print(os.path.expanduser(json.load(open(p)).get("notes_dir","~/Notes/meetings")) if os.path.exists(p) else os.path.expanduser("~/Notes/meetings"))')
+if [ "${FORCE:-}" != 1 ] && pgrep -x Notetaker >/dev/null; then
+  for d in "$NOTES_DIR"/20*; do
+    [ -f "$d/meta.json" ] && continue
+    if [ -n "$(find "$d" -maxdepth 1 -name '*.wav' -mmin -1 2>/dev/null)" ]; then
+      echo "Notetaker is recording ($(basename "$d")). Not restarting it; try again after the meeting (or FORCE=1)." >&2
+      exit 1
+    fi
+  done
+fi
 pkill -x Notetaker 2>/dev/null || true
 rm -rf "$DEST/Notetaker.app"
 cp -R "$APP" "$DEST/"
