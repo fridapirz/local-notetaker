@@ -97,7 +97,10 @@ final class AppState: ObservableObject {
         detectedApp = app
         switch phase {
         case .recording: recordingSawCall = true
-        case .idle, .failed, .processing: break  // the floating prompt appears via refreshPanel()
+        case .idle, .failed, .processing:
+            // A new call: offer it, even if "don't offer again" was left set by an earlier manual
+            // recording or a call that was never detected as ending.
+            promptDismissed = false
         }
     }
 
