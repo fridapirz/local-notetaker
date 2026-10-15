@@ -18,6 +18,25 @@ enum Pipeline {
     static var contextFile: URL { home.appendingPathComponent(".config/notetaker/context.md") }
     static var configFile: URL { home.appendingPathComponent(".config/notetaker/config.json") }
 
+    static func config() -> [String: Any] {
+        guard let data = try? Data(contentsOf: configFile),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [:] }
+        return json
+    }
+
+    /// Update one key in config.json, keeping everything else.
+    static func setConfig(_ key: String, _ value: Any) {
+        var json = config()
+        json[key] = value
+        try? FileManager.default.createDirectory(at: configFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if let data = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]) {
+            try? data.write(to: configFile, options: .atomic)
+        }
+    }
+
+    /// Anonymous usage statistics: nil = not asked yet.
+    static var shareStats: Bool? { config()["telemetry"] as? Bool }
+
     /// Pipeline sources: bundled in the .app, or overridden for development.
     static var pipelineDir: URL? {
         if let env = ProcessInfo.processInfo.environment["NOTETAKER_PIPELINE"] {

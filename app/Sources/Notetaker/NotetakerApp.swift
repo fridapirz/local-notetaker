@@ -27,6 +27,27 @@ struct NotetakerApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         Pipeline.startServer()
+        if Pipeline.shareStats == nil {  // ask once, a moment after launch
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { Self.askAboutStats() }
+        }
+    }
+
+    @MainActor static func askAboutStats() {
+        let alert = NSAlert()
+        alert.messageText = "Share anonymous usage statistics?"
+        alert.informativeText = """
+            It helps improve Notetaker. Only counts are sent: that the app was used today, and for each \
+            meeting its length (in ranges), the languages detected and how it was summarized.
+
+            Never audio, transcripts, titles, names or anything you type. You can change this any time \
+            in the menu.
+            """
+        alert.addButton(withTitle: "Share")
+        alert.addButton(withTitle: "Don't Share")
+        NSApp.activate(ignoringOtherApps: true)
+        let share = alert.runModal() == .alertFirstButtonReturn
+        Pipeline.setConfig("telemetry", share)
+        AppState.shared.shareStats = share
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -62,6 +83,7 @@ final class AppState: ObservableObject {
     /// The recording pill's ×; cleared on the next recording.
     @Published var pillHidden = false { didSet { refreshPanel() } }
     private lazy var panel = FloatingPanel(state: self)
+    @Published var shareStats = Pipeline.shareStats ?? false
     @Published var autoDetect = UserDefaults.standard.object(forKey: "autoDetect") as? Bool ?? true
 
     private let recorder = Recorder()
@@ -385,6 +407,10 @@ struct MenuContent: View {
         Button("Edit Context & Names…") { state.openContext() }
         Divider()
         Toggle("Detect Meetings", isOn: Binding(get: { state.autoDetect }, set: { _ in state.toggleAutoDetect() }))
+        Toggle("Share Anonymous Usage Stats", isOn: Binding(get: { state.shareStats }, set: { v in
+            state.shareStats = v
+            Pipeline.setConfig("telemetry", v)
+        }))
         Toggle("Launch at Login", isOn: Binding(get: { state.launchAtLogin }, set: { _ in state.toggleLaunchAtLogin() }))
         Button("Quit Notetaker") { NSApp.terminate(nil) }.keyboardShortcut("q")
         Text("Notetaker \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")")

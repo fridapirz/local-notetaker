@@ -29,6 +29,8 @@ DEFAULT_CONFIG = {
     "claude_fallback": "local",
     "my_names": ["Me"],  # action item owners that count as "mine" on the meetings page
     "server_port": 47821,  # notetaker serve: the meetings page with tickable action items
+    # Anonymous usage statistics: None = not asked yet (the app asks once), True / False = the answer.
+    "telemetry": None,
 }
 
 
@@ -143,6 +145,8 @@ def write_notes(session: Path, notes: str, summary_by: str, segments: list[dict]
         session = target
     if summary_by != "pending":  # a real summary supersedes any request queued for Claude Desktop earlier
         (session / "summary_request.md").unlink(missing_ok=True)
+        from . import telemetry
+        telemetry.meeting_processed(duration / 60, langs, summary_by)  # opt-in, anonymous; no-op otherwise
     from .html import render
     render(session)  # notes.html next to notes.md: what the app opens for humans
     try:
@@ -367,7 +371,11 @@ def main() -> None:
         print(json.dumps(result))
         return
     if args.cmd == "serve":
+        import threading
+
+        from . import telemetry
         from .serve import serve
+        threading.Thread(target=telemetry.daily_active, daemon=True).start()
         serve(notes_dir, args.port or load_config()["server_port"], lambda: write_index(notes_dir), args.app_pid)
         return
     if args.cmd == "pending":
