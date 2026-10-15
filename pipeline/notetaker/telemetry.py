@@ -1,8 +1,9 @@
-"""Opt-in, anonymous usage statistics (TelemetryDeck).
+"""Opt-in, anonymous usage statistics (PostHog, EU cloud).
 
 Sent only when the user said yes (`"telemetry": true` in ~/.config/notetaker/config.json, asked once by the
-app) and an app ID is configured. Payloads are counts and buckets only: never audio, transcripts, titles,
-names or anything typed. The user is a random install ID, hashed; TelemetryDeck stores no IP addresses.
+app) and a PostHog project key is configured. Payloads are counts and buckets only: never audio, transcripts, titles,
+names or anything typed. The user is a random install ID, hashed. GeoIP lookup is disabled per event and
+person profiles aren't created; also turn on "Discard client IP data" in the PostHog project settings.
 Failures are silent and never slow down or break a meeting.
 """
 
@@ -16,17 +17,17 @@ import uuid
 from datetime import date
 from pathlib import Path
 
-ENDPOINT = "https://nom.telemetrydeck.com/v2/"
+ENDPOINT = "https://eu.i.posthog.com/capture/"
 CONFIG_DIR = Path(os.path.expanduser("~/.config/notetaker"))
-APP_ID_FILE = Path(__file__).with_name("telemetry_app_id")  # shipped with releases; not a secret
+KEY_FILE = Path(__file__).with_name("telemetry_key")  # PostHog project API key (phc_…): public by design
 
 
 def app_id() -> str | None:
-    env = os.environ.get("NOTETAKER_TELEMETRY_APP_ID")
+    env = os.environ.get("NOTETAKER_POSTHOG_KEY")
     if env:
         return env.strip()
     try:
-        return APP_ID_FILE.read_text().strip() or None
+        return KEY_FILE.read_text().strip() or None
     except OSError:
         return None
 
@@ -61,12 +62,13 @@ def app_version() -> str:
 def send(signal: str, payload: dict | None = None) -> None:
     if not enabled():
         return
-    body = [{
-        "appID": app_id(),
-        "clientUser": hashlib.sha256(install_id().encode()).hexdigest(),
-        "type": signal,
-        "payload": {k: str(v) for k, v in {"appVersion": app_version(), **(payload or {})}.items()},
-    }]
+    body = {
+        "api_key": app_id(),
+        "event": signal,
+        "distinct_id": hashlib.sha256(install_id().encode()).hexdigest(),
+        "properties": {"appVersion": app_version(), **(payload or {}),
+                       "$geoip_disable": True, "$process_person_profile": False},
+    }
     try:
         req = urllib.request.Request(ENDPOINT, data=json.dumps(body).encode(), method="POST",
                                      headers={"Content-Type": "application/json"})

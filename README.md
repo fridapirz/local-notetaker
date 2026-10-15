@@ -32,8 +32,8 @@ and walks you through the two permission clicks. Steps it follows: [INSTALL.md](
 ## Anonymous usage statistics (opt-in)
 
 On first launch Notetaker asks once whether to share anonymous usage statistics; change it any time with
-**Share Anonymous Usage Stats** in the menu. If you say yes, it sends to [TelemetryDeck](https://telemetrydeck.com)
-(EU-hosted, stores no IP addresses):
+**Share Anonymous Usage Stats** in the menu. If you say yes, it sends to [PostHog](https://posthog.com) (EU cloud;
+no GeoIP lookup, no person profiles, client IP discarded):
 - `app.active`, at most once a day;
 - `meeting.processed`, per meeting: app version, length range (<15 / 15–30 / 30–60 / 60+ min), languages
   detected, and whether Claude or the on-device model summarized it.
