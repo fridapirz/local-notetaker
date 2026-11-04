@@ -302,7 +302,13 @@ final class AppState: ObservableObject {
     }
 
     func retry(mode: String) {
-        if let lastSession { run(session: lastSession, mode: mode) }
+        guard let lastSession else { return }
+        // A pending session is renamed to "<date HHMM> – <title>" once Claude Desktop adds the summary.
+        guard let session = Pipeline.locate(session: lastSession) else {
+            self.lastSession = nil
+            return fail("The recording folder \(lastSession.lastPathComponent) was moved or deleted")
+        }
+        run(session: session, mode: mode)
     }
 
     private func run(session: URL, mode: String) {

@@ -55,6 +55,17 @@ enum Pipeline {
         return support.appendingPathComponent("Notetaker/venv")
     }
 
+    /// The session folder as it is now: the pipeline (or Claude Desktop's summary) may have renamed
+    /// "<date HHMM>" to "<date HHMM> – <title>" since the app last saw it.
+    static func locate(session: URL) -> URL? {
+        let fm = FileManager.default
+        if fm.fileExists(atPath: session.path) { return session }
+        let parent = session.deletingLastPathComponent()
+        let stamp = String(session.lastPathComponent.prefix(15))  // "yyyy-MM-dd HHmm"
+        guard let dirs = try? fm.contentsOfDirectory(at: parent, includingPropertiesForKeys: nil) else { return nil }
+        return dirs.first { $0.lastPathComponent.hasPrefix(stamp + " – ") || $0.lastPathComponent == stamp }
+    }
+
     /// Returns notes.md and whether the summary is done (false = queued for Claude Desktop).
     static func process(session: URL, mode: String, onStatus: @escaping @Sendable (String) -> Void) async throws -> (URL, Bool) {
         guard let uv = uvPath else {
